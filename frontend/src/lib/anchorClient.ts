@@ -64,11 +64,11 @@ async function loadIdl() {
     rawIdl.types = [];
   }
 
-  if (rawIdl.accounts) {
-    for (const acc of rawIdl.accounts) {
-      const camel = toCamel(acc.name);
-      typeNameMap[acc.name] = camel;
-      acc.name = camel;
+if (rawIdl.accounts) {
+  for (const acc of rawIdl.accounts) {
+    const camel = toCamel(acc.name);
+    typeNameMap[acc.name] = camel;
+    acc.name = camel;
 
       if (!acc.discriminator || !Array.isArray(acc.discriminator)) {
         acc.discriminator =
@@ -80,27 +80,27 @@ async function loadIdl() {
           name: camel,
           type: acc.type,
         });
-      }
     }
   }
+}
 
-  if (rawIdl.events) {
-    for (const ev of rawIdl.events) {
-      const camel = toCamel(ev.name);
-      typeNameMap[ev.name] = camel;
-      ev.name = camel;
+if (rawIdl.events) {
+  for (const ev of rawIdl.events) {
+    const camel = toCamel(ev.name);
+    typeNameMap[ev.name] = camel;
+    ev.name = camel;
 
-      if (!rawIdl.types.find((t: any) => t.name === camel)) {
-        rawIdl.types.push({
-          name: camel,
-          type: {
-            kind: "struct",
-            fields: ev.fields || [],
-          },
-        });
-      }
+    if (!rawIdl.types.find((t: any) => t.name === camel)) {
+      rawIdl.types.push({
+        name: camel,
+        type: {
+          kind: "struct",
+          fields: ev.fields || [],
+        },
+      });
     }
   }
+}
 
   const normalizeDefined = (value: any): any => {
     if (Array.isArray(value)) {
@@ -131,6 +131,35 @@ async function loadIdl() {
   };
 
   normalizeDefined(rawIdl);
+
+  const toSnake = (s: string) =>
+    s
+      ? s
+          .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+          .replace(/__/g, "_")
+          .toLowerCase()
+      : s;
+
+  // Instruções: injeta discriminators se faltarem (sha256("global:<snake_name>")[:8])
+  if (rawIdl.instructions) {
+    for (const ix of rawIdl.instructions) {
+      if (!ix.discriminator || !Array.isArray(ix.discriminator)) {
+        const seed = `global:${toSnake(ix.name)}`;
+        if (typeof crypto !== "undefined" && (crypto as any).subtle) {
+          const hash = await (crypto as any).subtle.digest(
+            "SHA-256",
+            new TextEncoder().encode(seed)
+          );
+          ix.discriminator = Array.from(new Uint8Array(hash).slice(0, 8));
+        } else {
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const nodeCrypto = require("crypto");
+          const hash = nodeCrypto.createHash("sha256").update(seed).digest();
+          ix.discriminator = Array.from(hash.slice(0, 8));
+        }
+      }
+    }
+  }
 
   const address =
     rawIdl?.address ?? rawIdl?.metadata?.address ?? PROGRAM_ID.toBase58();
