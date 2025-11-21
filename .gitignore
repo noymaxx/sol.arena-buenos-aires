@@ -1,0 +1,41 @@
+# Anchor
+.anchor
+target/
+node_modules/
+test-ledger/
+contracts/target/
+contracts/node_modules/
+contracts/vendor/
+contracts/test-ledger/
+.DS_Store
+
+# IDL
+*.so
+
+# Keys
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!Anchor.toml
+
+# Frontend
+app/node_modules/
+app/.next/
+app/out/
+app/.env*.local
+frontend/.next/
+frontend/out/
+frontend/node_modules/
+frontend/.env
+frontend/.env*.local
+
+# Env
+.env
+.env*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

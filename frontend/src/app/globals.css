@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 2, 6, 22;
+  --background-end-rgb: 4, 18, 31;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: radial-gradient(circle at 20% 20%, rgba(16, 185, 129, 0.08), transparent 32%),
+    radial-gradient(circle at 80% 10%, rgba(139, 92, 246, 0.08), transparent 30%),
+    linear-gradient(135deg, rgb(var(--background-start-rgb)) 0%, rgb(var(--background-end-rgb)) 100%);
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Wallet button customization aligned to arena palette */
+.wallet-adapter-button {
+  background: linear-gradient(135deg, #10b981, #8b5cf6) !important;
+  color: #0b1220 !important;
+  font-weight: 700 !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 10px 40px rgba(16, 185, 129, 0.35) !important;
+}
+
+.wallet-adapter-button:hover:not([disabled]) {
+  filter: brightness(1.05) !important;
+  transform: translateY(-1px);
+}
