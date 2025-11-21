@@ -24,7 +24,7 @@ export default function MyBets() {
 
     try {
       setLoading(true);
-      const program = getProgram(connection, wallet as any);
+      const program = await getProgram(connection, wallet as any);
 
       // Load all bets
       // @ts-ignore

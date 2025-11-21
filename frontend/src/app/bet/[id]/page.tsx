@@ -33,7 +33,7 @@ export default function BetDetail() {
   const loadBet = async () => {
     try {
       setLoading(true);
-      const program = getProgram(connection, wallet as any, true);
+      const program = await getProgram(connection, wallet as any, true);
       // @ts-ignore
       const betAccount = await program.account.bet.fetch(betPubkey);
       setBet(betAccount);
@@ -53,7 +53,7 @@ export default function BetDetail() {
 
     try {
       setActionLoading(true);
-      const program = getProgram(connection, wallet as any);
+      const program = await getProgram(connection, wallet as any);
 
       // @ts-ignore - Anchor types issue
       const tx = await (program as any).methods
@@ -83,7 +83,7 @@ export default function BetDetail() {
 
     try {
       setActionLoading(true);
-      const program = getProgram(connection, wallet as any);
+      const program = await getProgram(connection, wallet as any);
       let amount: any;
       try {
         amount = solToLamports(supportAmount);
@@ -129,7 +129,7 @@ export default function BetDetail() {
 
     try {
       setActionLoading(true);
-      const program = getProgram(connection, wallet as any);
+      const program = await getProgram(connection, wallet as any);
       const sideEnum = side === "A" ? { a: {} } : { b: {} };
 
       const tx = await (program as any).methods
@@ -158,7 +158,7 @@ export default function BetDetail() {
 
     try {
       setActionLoading(true);
-      const program = getProgram(connection, wallet as any);
+      const program = await getProgram(connection, wallet as any);
 
       const tx = await (program as any).methods
         .withdrawPrincipal()
@@ -186,7 +186,7 @@ export default function BetDetail() {
 
     try {
       setActionLoading(true);
-      const program = getProgram(connection, wallet as any);
+      const program = await getProgram(connection, wallet as any);
 
       const [supportPositionPda] = getSupportPositionPDA(
         betPubkey,

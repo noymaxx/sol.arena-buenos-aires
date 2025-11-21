@@ -21,11 +21,9 @@ export function BetCard({ betPubkey, bet }: BetCardProps) {
   const percentB = ((supportB / total) * 100).toFixed(1);
 
   const getStatus = () => {
-    if ("resolved" in bet.status) {
-      return "Resolved";
-    } else if ("cancelled" in bet.status) {
-      return "Cancelled";
-    }
+    if ("resolved" in bet.status) return "Resolved";
+    if ("cancelled" in bet.status) return "Cancelled";
+
     const now = Date.now() / 1000;
     if (bet?.deadlineDuel && now < safeToNumber(bet.deadlineDuel)) {
       return "Awaiting deposits";

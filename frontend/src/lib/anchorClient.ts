@@ -1,71 +1,205 @@
-  import * as anchor from "@coral-xyz/anchor";
-import { Program } from "@coral-xyz/anchor";
-import { Connection, PublicKey, Keypair } from "@solana/web3.js";
-import { DuelCrowdBets } from "./types/duel_crowd_bets";
-import idl from "./idl/duel_crowd_bets.json";
+import { Program, AnchorProvider, BN, Idl } from "@coral-xyz/anchor";
+import { PublicKey, Connection } from "@solana/web3.js";
+import { AnchorWallet } from "@solana/wallet-adapter-react";
 
-// Program ID - Update this after deployment
-export const PROGRAM_ID = new PublicKey(
-  "5iRExHjkQzwidM7EwCu8eVpeBAPnJ8qVuHi3y7gZbaeX"
-);
+export const PROGRAM_ID = new PublicKey("5iRExHjkQzwidM7EwCu8eVpeBAPnJ8qVuHi3y7gZbaeX");
 
-export const DEVNET_ENDPOINT = "https://api.devnet.solana.com";
+let cachedIdl: any = null;
+let cachedProgram: Program | null = null;
+let cachedWallet: string | null = null;
 
-type WalletLike = anchor.Wallet | null | undefined;
-
-function buildProvider(
-  connection: Connection,
-  wallet: WalletLike,
-  allowReadonly = false
-): anchor.AnchorProvider {
-  const isWalletReady =
-    !!wallet &&
-    !!wallet.publicKey &&
-    !!wallet.signTransaction &&
-    !!wallet.signAllTransactions;
-
-  if (!isWalletReady && !allowReadonly) {
-    throw new Error("Wallet not ready for transactions");
-  }
-
-  const resolvedWallet =
-    isWalletReady || !allowReadonly
-      ? (wallet as anchor.Wallet)
-      : ({
-          publicKey: Keypair.generate().publicKey,
-          signTransaction: async (tx: any) => tx,
-          signAllTransactions: async (txs: any) => txs,
-        } as anchor.Wallet);
-
-  const provider = new anchor.AnchorProvider(
-    connection,
-    resolvedWallet,
-    anchor.AnchorProvider.defaultOptions()
-  );
-
-  return provider;
+export function clearProgramCache() {
+  cachedIdl = null;
+  cachedProgram = null;
+  cachedWallet = null;
 }
 
-export function getProgram(
-  connection: Connection,
-  wallet: WalletLike,
-  allowReadonly = false
-): Program<any> {
-  const provider = buildProvider(connection, wallet, allowReadonly);
-  const programIdFromIdl = (idl as any)?.metadata?.address;
-  const resolvedProgramId = programIdFromIdl
-    ? new PublicKey(programIdFromIdl)
-    : PROGRAM_ID;
+async function loadIdl() {
+  if (cachedIdl) return cachedIdl;
 
-  if (programIdFromIdl && resolvedProgramId.toBase58() !== PROGRAM_ID.toBase58()) {
-    console.warn(
-      "[anchorClient] Program ID mismatch between code and IDL.",
-      "Using IDL address:",
-      resolvedProgramId.toBase58()
-    );
+  const response = await fetch('/idl/duel_crowd_bets.json');
+  if (!response.ok) {
+    throw new Error(`Failed to fetch IDL: ${response.status}`);
   }
 
-  return new Program(idl as any, resolvedProgramId, provider);
+  const idlJson = await response.json();
+
+  // Normalize IDL so Anchor can parse it correctly
+  const normalizeTypes = (value: any): any => {
+    if (Array.isArray(value)) {
+      return value.map(normalizeTypes);
+    }
+    if (value && typeof value === "object") {
+      for (const key of Object.keys(value)) {
+        value[key] = normalizeTypes(value[key]);
+      }
+      return value;
+    }
+    if (value === "publicKey") {
+      return "pubkey";
+    }
+    return value;
+  };
+
+  normalizeTypes(idlJson);
+
+  // Align type names and references with Anchor's camelCase conversion
+  const toCamel = (str: string) =>
+    str ? str.charAt(0).toLowerCase() + str.slice(1) : str;
+
+  const typeNameMap: Record<string, string> = {};
+  if (idlJson.types) {
+    for (const t of idlJson.types) {
+      const camel = toCamel(t.name);
+      typeNameMap[t.name] = camel;
+      t.name = camel;
+    }
+  }
+
+  // Ensure account layouts are available in `types`
+  if (!idlJson.types) {
+    idlJson.types = [];
+  }
+  if (idlJson.accounts) {
+    for (const acc of idlJson.accounts) {
+      const camel = toCamel(acc.name);
+      typeNameMap[acc.name] = camel;
+      acc.name = camel;
+
+      // Avoid duplicate type entries
+      if (!idlJson.types.find((t: any) => t.name === camel)) {
+        idlJson.types.push({
+          name: camel,
+          type: acc.type,
+        });
+      }
+    }
+  }
+
+  if (idlJson.events) {
+    for (const ev of idlJson.events) {
+      const camel = toCamel(ev.name);
+      typeNameMap[ev.name] = camel;
+      ev.name = camel;
+
+      if (!idlJson.types.find((t: any) => t.name === camel)) {
+        idlJson.types.push({
+          name: camel,
+          type: {
+            kind: "struct",
+            fields: ev.fields || [],
+          },
+        });
+      }
+    }
+  }
+
+  const normalizeDefined = (value: any): any => {
+    if (Array.isArray(value)) {
+      return value.map(normalizeDefined);
+    }
+    if (value && typeof value === "object") {
+      if (typeof value.defined === "string") {
+        const mapped = typeNameMap[value.defined] ?? value.defined;
+        value.defined = { name: mapped };
+      } else if (
+        value.defined &&
+        typeof value.defined === "object" &&
+        typeof value.defined.name === "string" &&
+        typeNameMap[value.defined.name]
+      ) {
+        value.defined.name = typeNameMap[value.defined.name];
+      }
+      for (const key of Object.keys(value)) {
+        value[key] = normalizeDefined(value[key]);
+      }
+      return value;
+    }
+    return value;
+  };
+
+  normalizeDefined(idlJson);
+
+  // Anchor Program ctor expects `address` at the root of the IDL
+  // (metadata.address is ignored). Fill it if missing.
+  if (!idlJson.address) {
+    idlJson.address = idlJson.metadata?.address ?? PROGRAM_ID.toBase58();
+  }
+
+  cachedIdl = idlJson;
+  return cachedIdl;
+}
+
+export async function getProgram(
+  connection: Connection,
+  wallet: AnchorWallet | any,
+  allowReadonly = false
+): Promise<Program> {
+  try {
+    const idl = await loadIdl();
+
+    console.log("📦 IDL loaded:", {
+      name: idl?.metadata?.name,
+      instructionsCount: idl?.instructions?.length,
+      accountsCount: idl?.accounts?.length,
+    });
+
+    const readOnlyWallet = {
+      publicKey: PublicKey.default,
+      signTransaction: async () => {
+        throw new Error("Read-only wallet cannot sign transactions");
+      },
+      signAllTransactions: async () => {
+        throw new Error("Read-only wallet cannot sign transactions");
+      },
+    };
+
+    const isUsableWallet =
+      wallet &&
+      wallet.publicKey &&
+      typeof wallet.signTransaction === "function" &&
+      typeof wallet.signAllTransactions === "function";
+
+    if (!isUsableWallet && !allowReadonly) {
+      throw new Error("Wallet not connected");
+    }
+
+    const walletForProvider: AnchorWallet =
+      isUsableWallet || !allowReadonly
+        ? {
+            publicKey: wallet.publicKey,
+            signTransaction: wallet.signTransaction.bind(wallet),
+            signAllTransactions: wallet.signAllTransactions.bind(wallet),
+          }
+        : (readOnlyWallet as AnchorWallet);
+
+    const walletKey = walletForProvider.publicKey?.toBase58?.() ?? "readonly";
+
+    if (cachedProgram && walletKey === cachedWallet) {
+      return cachedProgram;
+    }
+
+    const provider = new AnchorProvider(
+      connection,
+      walletForProvider,
+      AnchorProvider.defaultOptions()
+    );
+
+    const program = new Program(idl as Idl, provider);
+
+    console.log("✅ Program created:", {
+      programId: program.programId.toBase58(),
+      hasMethods: !!program.methods,
+    });
+
+    cachedProgram = program;
+    cachedWallet = walletKey;
+
+    return program;
+  } catch (error) {
+    console.error("❌ Error loading program:", error);
+    throw error;
+  }
 }
 
 // Helper: Derive Bet PDA
@@ -103,97 +237,72 @@ export function getSupportPositionPDA(
 }
 
 // Helper: Format lamports to SOL
-export function lamportsToSol(lamports: number | anchor.BN | undefined | null): number {
-  const lamportsNumber = safeToNumber(lamports);
-  return lamportsNumber / anchor.web3.LAMPORTS_PER_SOL;
+export function lamportsToSol(lamports: number | BN | undefined | null): number {
+  if (!lamports) return 0;
+
+  if (typeof lamports === "number") {
+    return lamports / 1e9; // LAMPORTS_PER_SOL
+  }
+
+  if (lamports instanceof BN) {
+    return lamports.toNumber() / 1e9;
+  }
+
+  return 0;
 }
 
-// Helper: Format SOL to lamports with validation
-export function solToLamports(sol: number | string): anchor.BN {
+// Helper: Format SOL to lamports
+export function solToLamports(sol: number | string): BN {
   const parsed = typeof sol === "string" ? parseFloat(sol) : sol;
   if (!Number.isFinite(parsed) || parsed <= 0) {
     throw new Error("Invalid SOL amount");
   }
-  const lamports = Math.round(parsed * anchor.web3.LAMPORTS_PER_SOL);
-  return new anchor.BN(lamports);
+  const lamports = Math.round(parsed * 1e9); // LAMPORTS_PER_SOL
+  return new BN(lamports);
 }
 
 // Helper: Safe BN conversion
-export function safeBN(value: any): anchor.BN {
-  if (!value) return new anchor.BN(0);
+export function safeBN(value: any): BN {
+  if (!value) return new BN(0);
+  if (value instanceof BN) return value;
 
-  // If it's already a BN, return it
-  if (value instanceof anchor.BN) return value;
-
-  // If it has _bn property, use it
-  if (value && typeof value === "object" && "_bn" in value && value._bn !== undefined && value._bn !== null) {
-    try {
-      return new anchor.BN(value._bn);
-    } catch {
-      return new anchor.BN(0);
+  try {
+    if (typeof value === "number" || typeof value === "string") {
+      return new BN(value);
     }
+    if (value && typeof value === "object" && "_bn" in value) {
+      return new BN(value._bn);
+    }
+    if (value && typeof value.toNumber === "function") {
+      return new BN(value.toNumber());
+    }
+  } catch (err) {
+    console.warn("safeBN conversion failed:", err);
   }
 
-  // If it's a number or string
-  if (typeof value === "number" || typeof value === "string") {
-    try {
-      return new anchor.BN(value);
-    } catch {
-      return new anchor.BN(0);
-    }
-  }
-
-  // Default to zero
-  return new anchor.BN(0);
+  return new BN(0);
 }
 
 // Helper: Convert any value to number safely
 export function safeToNumber(value: any): number {
+  if (!value) return 0;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+
   try {
-    if (!value) return 0;
-
-    if (typeof value === "number" && Number.isFinite(value)) return value;
-
-    // Handle BN objects with try-catch
-    if (value instanceof anchor.BN) {
-      try {
-        return value.toNumber();
-      } catch (err) {
-        console.warn("[safeToNumber] BN.toNumber() failed:", err);
-        return 0;
-      }
+    if (value instanceof BN) return value.toNumber();
+    if (value && typeof value === "object" && "_bn" in value) {
+      return new BN(value._bn).toNumber();
     }
-
-    // Handle objects with _bn property
-    if (value && typeof value === "object" && "_bn" in value && value._bn !== undefined && value._bn !== null) {
-      try {
-        return new anchor.BN(value._bn).toNumber();
-      } catch (err) {
-        console.warn("[safeToNumber] Creating BN from _bn failed:", err, value);
-        return 0;
-      }
+    if (value && typeof value.toNumber === "function") {
+      return value.toNumber();
     }
-
-    // Handle toNumber method
-    if (value && typeof value === "object" && typeof value.toNumber === "function") {
-      try {
-        return value.toNumber();
-      } catch (err) {
-        console.warn("[safeToNumber] toNumber() method failed:", err, value);
-        return 0;
-      }
-    }
-
-    // Try to parse as number
     if (typeof value === "string") {
       const parsed = Number(value);
       return Number.isFinite(parsed) ? parsed : 0;
     }
-
-    console.warn("[safeToNumber] Unhandled value type:", typeof value, value);
-    return 0;
   } catch (err) {
-    console.error("[safeToNumber] Unexpected error:", err, value);
-    return 0;
+    console.warn("safeToNumber conversion failed:", err);
   }
+
+  return 0;
 }

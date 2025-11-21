@@ -8,6 +8,7 @@ import { getProgram, getBetPDA, solToLamports } from "@/lib/anchorClient";
 import * as anchor from "@coral-xyz/anchor";
 import toast from "react-hot-toast";
 import { useWalletConnection } from "@/lib/useWalletConnection";
+import { debugPage } from "@/lib/debug";
 
 export default function CreateBet() {
   const router = useRouter();
@@ -29,6 +30,7 @@ export default function CreateBet() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    debugPage.group('CreateBet handleSubmit');
 
     const ready = await ensureConnected();
     const fullyReady =
@@ -86,13 +88,35 @@ export default function CreateBet() {
 
       let stakeLamports: anchor.BN;
       try {
+        debugPage.log('Converting SOL to lamports:', formData.stakeSOL);
         stakeLamports = solToLamports(formData.stakeSOL);
+        debugPage.debugBN('stakeLamports', stakeLamports);
       } catch (err: any) {
+        debugPage.error('Error converting SOL to lamports:', err);
         toast.error(err.message || "Invalid stake amount");
+        debugPage.groupEnd();
         return;
       }
-      if (!stakeLamports || stakeLamports.isZero() || stakeLamports.isNeg()) {
+
+      debugPage.log('Checking if stakeLamports is valid...');
+      if (!stakeLamports) {
+        debugPage.error('stakeLamports is null/undefined');
         toast.error("Stake must be greater than zero");
+        debugPage.groupEnd();
+        return;
+      }
+
+      try {
+        if (stakeLamports.isZero() || stakeLamports.isNeg()) {
+          debugPage.error('stakeLamports is zero or negative');
+          toast.error("Stake must be greater than zero");
+          debugPage.groupEnd();
+          return;
+        }
+      } catch (err) {
+        debugPage.error('Error checking stakeLamports validity:', err);
+        toast.error("Invalid stake amount");
+        debugPage.groupEnd();
         return;
       }
 
@@ -121,7 +145,7 @@ export default function CreateBet() {
 
       let program;
       try {
-        program = getProgram(connection, anchorWallet);
+        program = await getProgram(connection, anchorWallet);
       } catch (err: any) {
         toast.error(err.message || "Wallet not ready");
         return;
@@ -157,10 +181,11 @@ export default function CreateBet() {
         router.push(`/bet/${betPda.toString()}`);
       }, 1000);
     } catch (error: any) {
-      console.error("Error creating bet:", error);
+      debugPage.error("Error creating bet:", error);
       toast.error(error.message || "Failed to create bet");
     } finally {
       setLoading(false);
+      debugPage.groupEnd();
     }
   };
 

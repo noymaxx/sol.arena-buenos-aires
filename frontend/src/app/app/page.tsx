@@ -17,22 +17,26 @@ export default function AppPage() {
 
   const loadBets = async () => {
     try {
+      console.log('Starting to load bets...');
       setLoading(true);
-      const program = getProgram(connection, wallet as any, true);
+
+      const program = await getProgram(connection, wallet as any, true);
+      console.log('Program created, fetching bets...');
+
       // @ts-ignore - Temporary fix for TypeScript account name resolution
       const allBets = await program.account.bet.all();
 
-      console.log("[loadBets] Raw bets data:", allBets);
+      console.log("Raw bets data count:", allBets.length);
 
       const sorted = allBets.sort((a: any, b: any) => {
-        console.log("[loadBets] Processing bet:", a?.account);
         const aDeadline = safeToNumber(a?.account?.deadlineCrowd);
         const bDeadline = safeToNumber(b?.account?.deadlineCrowd);
         return bDeadline - aDeadline;
       });
 
       setBets(sorted);
-      console.log("[loadBets] Sorted bets set:", sorted.length);
+      console.log("Sorted bets set, count:", sorted.length);
+
     } catch (error) {
       console.error("Error loading bets:", error);
     } finally {
