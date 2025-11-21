@@ -4,15 +4,21 @@
 
 :root {
   --foreground-rgb: 255, 255, 255;
-  --background-start-rgb: 2, 6, 22;
-  --background-end-rgb: 4, 18, 31;
+  --background-start-rgb: 2, 3, 10;
+  --background-end-rgb: 7, 11, 25;
+  --arena-accent: #22F2AA;
+  --arena-royal: #7C3AED;
+  --arena-gold: #FACC15;
 }
 
 body {
   color: rgb(var(--foreground-rgb));
-  background: radial-gradient(circle at 20% 20%, rgba(16, 185, 129, 0.08), transparent 32%),
-    radial-gradient(circle at 80% 10%, rgba(139, 92, 246, 0.08), transparent 30%),
-    linear-gradient(135deg, rgb(var(--background-start-rgb)) 0%, rgb(var(--background-end-rgb)) 100%);
+  background: radial-gradient(circle at 18% 18%, rgba(34, 242, 170, 0.08), transparent 28%),
+    radial-gradient(circle at 74% 12%, rgba(124, 58, 237, 0.08), transparent 26%),
+    radial-gradient(circle at 30% 78%, rgba(250, 204, 21, 0.06), transparent 24%),
+    linear-gradient(140deg, rgb(var(--background-start-rgb)) 0%, rgb(var(--background-end-rgb)) 100%);
+  min-height: 100vh;
+  position: relative;
 }
 
 @layer utilities {
@@ -23,14 +29,29 @@ body {
 
 /* Wallet button customization aligned to arena palette */
 .wallet-adapter-button {
-  background: linear-gradient(135deg, #10b981, #8b5cf6) !important;
-  color: #0b1220 !important;
+  background: linear-gradient(120deg, #22f2aa 0%, #7c3aed 50%, #22f2aa 100%) !important;
+  color: #02030a !important;
   font-weight: 700 !important;
   border: 1px solid rgba(255, 255, 255, 0.15) !important;
-  box-shadow: 0 10px 40px rgba(16, 185, 129, 0.35) !important;
+  background-size: 220% 220% !important;
+  box-shadow: 0 10px 40px rgba(34, 242, 170, 0.25) !important;
+  transition: background-position 0.6s ease, transform 0.2s ease !important;
 }
 
 .wallet-adapter-button:hover:not([disabled]) {
   filter: brightness(1.05) !important;
+  background-position: 95% 50% !important;
   transform: translateY(-1px);
+}
+
+/* Simple shimmer utility for neon borders */
+.shimmer-border {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 5s linear infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }

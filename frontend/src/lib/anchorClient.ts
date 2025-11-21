@@ -4,129 +4,79 @@ import { AnchorWallet } from "@solana/wallet-adapter-react";
 
 const ACCOUNT_DISCRIMINATORS: Record<string, number[]> = {
   Bet: [147, 23, 35, 59, 15, 75, 155, 32],
+  bet: [147, 23, 35, 59, 15, 75, 155, 32],
   SupportPosition: [202, 124, 14, 86, 154, 235, 215, 186],
+  supportPosition: [202, 124, 14, 86, 154, 235, 215, 186],
 };
 
-export const PROGRAM_ID = new PublicKey("5iRExHjkQzwidM7EwCu8eVpeBAPnJ8qVuHi3y7gZbaeX");
+export const PROGRAM_ID = new PublicKey(
+  "5iRExHjkQzwidM7EwCu8eVpeBAPnJ8qVuHi3y7gZbaeX"
+);
 
 let cachedIdl: any = null;
 let cachedProgram: Program | null = null;
 let cachedWallet: string | null = null;
 
-function ensureProgramId(idl: any): string {
-  const programId =
-    idl?.address ||
-    idl?.metadata?.address ||
-    PROGRAM_ID?.toBase58?.();
-
-  if (!programId) {
-    throw new Error("Program address missing from IDL");
+function normalizeIdlTypes(value: any): any {
+  if (Array.isArray(value)) {
+    return value.map(normalizeIdlTypes);
   }
-
-  if (idl.address !== programId) {
-    idl.address = programId;
-  }
-
-  if (idl.metadata?.address !== programId) {
-    idl.metadata = { ...(idl.metadata || {}), address: programId };
-  }
-
-  return programId;
-}
-
-function hydrateIdl(idl: any) {
-  if (!idl) return idl;
-
-  if (idl.accounts) {
-    for (const acc of idl.accounts) {
-      if (!acc.discriminator || !Array.isArray(acc.discriminator)) {
-        acc.discriminator =
-          ACCOUNT_DISCRIMINATORS[acc.name] ??
-          ACCOUNT_DISCRIMINATORS[
-            acc.name?.charAt(0)?.toUpperCase() + acc.name?.slice(1)
-          ] ??
-          [];
+  if (value && typeof value === "object") {
+    for (const key of Object.keys(value)) {
+      const current = (value as any)[key];
+      if (current === "publicKey") {
+        (value as any)[key] = "pubkey";
+      } else {
+        (value as any)[key] = normalizeIdlTypes(current);
       }
     }
+    return value;
   }
-
-  if (idl.metadata) {
-    idl.metadata = {
-      name: idl.metadata.name ?? idl.name,
-      ...idl.metadata,
-    };
-  } else {
-    idl.metadata = { name: idl.name, address: idl.address };
-  }
-
-  ensureProgramId(idl);
-  return idl;
-}
-
-export function clearProgramCache() {
-  cachedIdl = null;
-  cachedProgram = null;
-  cachedWallet = null;
+  if (value === "publicKey") return "pubkey";
+  return value;
 }
 
 async function loadIdl() {
-  if (cachedIdl) return hydrateIdl(cachedIdl);
+  if (cachedIdl) return cachedIdl;
 
-  const response = await fetch('/idl/duel_crowd_bets.json');
+  const response = await fetch("/idl/duel_crowd_bets.json");
   if (!response.ok) {
     throw new Error(`Failed to fetch IDL: ${response.status}`);
   }
 
-  const idlJson = await response.json();
+  const rawIdl = await response.json();
+  normalizeIdlTypes(rawIdl);
 
-  // Ensure account discriminators and metadata are present before transformation.
-  hydrateIdl(idlJson);
-
-  // Normalize IDL so Anchor can parse it correctly
-  const normalizeTypes = (value: any): any => {
-    if (Array.isArray(value)) {
-      return value.map(normalizeTypes);
-    }
-    if (value && typeof value === "object") {
-      for (const key of Object.keys(value)) {
-        value[key] = normalizeTypes(value[key]);
-      }
-      return value;
-    }
-    if (value === "publicKey") {
-      return "pubkey";
-    }
-    return value;
-  };
-
-  normalizeTypes(idlJson);
-
-  // Align type names and references with Anchor's camelCase conversion
   const toCamel = (str: string) =>
     str ? str.charAt(0).toLowerCase() + str.slice(1) : str;
 
   const typeNameMap: Record<string, string> = {};
-  if (idlJson.types) {
-    for (const t of idlJson.types) {
+
+  if (rawIdl.types) {
+    for (const t of rawIdl.types) {
       const camel = toCamel(t.name);
       typeNameMap[t.name] = camel;
       t.name = camel;
     }
   }
 
-  // Ensure account layouts are available in `types`
-  if (!idlJson.types) {
-    idlJson.types = [];
+  if (!rawIdl.types) {
+    rawIdl.types = [];
   }
-  if (idlJson.accounts) {
-    for (const acc of idlJson.accounts) {
+
+  if (rawIdl.accounts) {
+    for (const acc of rawIdl.accounts) {
       const camel = toCamel(acc.name);
       typeNameMap[acc.name] = camel;
       acc.name = camel;
 
-      // Avoid duplicate type entries
-      if (!idlJson.types.find((t: any) => t.name === camel)) {
-        idlJson.types.push({
+      if (!acc.discriminator || !Array.isArray(acc.discriminator)) {
+        acc.discriminator =
+          ACCOUNT_DISCRIMINATORS[camel] ?? ACCOUNT_DISCRIMINATORS[acc.name] ?? [];
+      }
+
+      if (!rawIdl.types.find((t: any) => t.name === camel)) {
+        rawIdl.types.push({
           name: camel,
           type: acc.type,
         });
@@ -134,14 +84,14 @@ async function loadIdl() {
     }
   }
 
-  if (idlJson.events) {
-    for (const ev of idlJson.events) {
+  if (rawIdl.events) {
+    for (const ev of rawIdl.events) {
       const camel = toCamel(ev.name);
       typeNameMap[ev.name] = camel;
       ev.name = camel;
 
-      if (!idlJson.types.find((t: any) => t.name === camel)) {
-        idlJson.types.push({
+      if (!rawIdl.types.find((t: any) => t.name === camel)) {
+        rawIdl.types.push({
           name: camel,
           type: {
             kind: "struct",
@@ -157,33 +107,52 @@ async function loadIdl() {
       return value.map(normalizeDefined);
     }
     if (value && typeof value === "object") {
-      if (typeof value.defined === "string") {
-        const mapped = typeNameMap[value.defined] ?? value.defined;
-        value.defined = { name: mapped };
+      if (typeof (value as any).defined === "string") {
+        const mapped =
+          typeNameMap[(value as any).defined] ?? toCamel((value as any).defined);
+        (value as any).defined = { name: mapped };
       } else if (
-        value.defined &&
-        typeof value.defined === "object" &&
-        typeof value.defined.name === "string" &&
-        typeNameMap[value.defined.name]
+        (value as any).defined &&
+        typeof (value as any).defined === "object" &&
+        typeof (value as any).defined.name === "string"
       ) {
-        value.defined.name = typeNameMap[value.defined.name];
+        const mapped =
+          typeNameMap[(value as any).defined.name] ??
+          toCamel((value as any).defined.name);
+        (value as any).defined.name = mapped;
       }
+
       for (const key of Object.keys(value)) {
-        value[key] = normalizeDefined(value[key]);
+        (value as any)[key] = normalizeDefined((value as any)[key]);
       }
       return value;
     }
     return value;
   };
 
-  normalizeDefined(idlJson);
+  normalizeDefined(rawIdl);
 
-  // Anchor Program ctor expects `address` and discriminators in the IDL.
-  // Force the canonical values to avoid ambiguity.
-  hydrateIdl(idlJson);
+  const address =
+    rawIdl?.address ?? rawIdl?.metadata?.address ?? PROGRAM_ID.toBase58();
+  if (!address) {
+    throw new Error("Program address missing from IDL");
+  }
 
-  cachedIdl = idlJson;
+  rawIdl.address = address;
+  rawIdl.metadata = {
+    name: rawIdl?.metadata?.name ?? rawIdl?.name,
+    address,
+    ...(rawIdl.metadata || {}),
+  };
+
+  cachedIdl = rawIdl;
   return cachedIdl;
+}
+
+export function clearProgramCache() {
+  cachedIdl = null;
+  cachedProgram = null;
+  cachedWallet = null;
 }
 
 export async function getProgram(
@@ -195,7 +164,7 @@ export async function getProgram(
     const idl = await loadIdl();
 
     console.log("📦 IDL loaded:", {
-      name: idl?.metadata?.name,
+      name: idl?.metadata?.name ?? idl?.name,
       instructionsCount: idl?.instructions?.length,
       accountsCount: idl?.accounts?.length,
     });
@@ -220,14 +189,13 @@ export async function getProgram(
       throw new Error("Wallet not connected");
     }
 
-    const walletForProvider: AnchorWallet =
-      isUsableWallet || !allowReadonly
-        ? {
-            publicKey: wallet.publicKey,
-            signTransaction: wallet.signTransaction.bind(wallet),
-            signAllTransactions: wallet.signAllTransactions.bind(wallet),
-          }
-        : (readOnlyWallet as AnchorWallet);
+    const walletForProvider: AnchorWallet = isUsableWallet
+      ? {
+          publicKey: wallet.publicKey,
+          signTransaction: wallet.signTransaction.bind(wallet),
+          signAllTransactions: wallet.signAllTransactions.bind(wallet),
+        }
+      : (readOnlyWallet as AnchorWallet);
 
     const walletKey = walletForProvider.publicKey?.toBase58?.() ?? "readonly";
 
@@ -241,14 +209,10 @@ export async function getProgram(
       AnchorProvider.defaultOptions()
     );
 
-    const hydratedIdl = hydrateIdl(idl);
-    const programId = ensureProgramId(hydratedIdl);
-    cachedIdl = hydratedIdl;
-
-    const program = new Program(hydratedIdl as Idl, provider);
+    const program = new Program(idl as Idl, provider);
 
     console.log("✅ Program created:", {
-      programId,
+      programId: program.programId.toBase58(),
       hasMethods: !!program.methods,
     });
 

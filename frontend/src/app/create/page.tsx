@@ -139,10 +139,10 @@ export default function CreateBet() {
       // Protocol treasury: use env if provided, otherwise creator wallet as fallback
       let protocolTreasury: PublicKey;
       try {
-        const protocolTreasuryStr =
-          process.env.NEXT_PUBLIC_PROTOCOL_TREASURY ||
-          userWalletPubkey.toBase58();
-        protocolTreasury = new PublicKey(protocolTreasuryStr.trim());
+        const protocolTreasuryStr = (
+          process.env.NEXT_PUBLIC_PROTOCOL_TREASURY || userWalletPubkey.toBase58()
+        ).trim();
+        protocolTreasury = new PublicKey(protocolTreasuryStr);
       } catch (err) {
         toast.error("Invalid protocol treasury address");
         return;
@@ -157,6 +157,26 @@ export default function CreateBet() {
         toast.error(err.message || "Wallet not ready");
         return;
       }
+
+      debugPage.log("createBet args", {
+        userA: userA?.toBase58?.(),
+        userB: userB?.toBase58?.(),
+        arbiter: arbiterPubkey?.toBase58?.(),
+        stakeLamports: stakeLamports?.toString?.(),
+        deadlineDuel: deadlineDuel?.toString?.(),
+        deadlineCrowd: deadlineCrowd?.toString?.(),
+        resolveTs: resolveTs?.toString?.(),
+        spreadBps,
+        creatorShareBps,
+        arbiterShareBps,
+        protocolShareBps,
+        accounts: {
+          payer: wallet.publicKey?.toBase58?.(),
+          bet: betPda?.toBase58?.(),
+          protocolTreasury: protocolTreasury?.toBase58?.(),
+          systemProgram: SystemProgram.programId.toBase58(),
+        },
+      });
 
       const tx = await (program as any).methods
         .createBet(
@@ -197,72 +217,71 @@ export default function CreateBet() {
   };
 
   const inputClasses =
-    "w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/50 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/60 transition-all outline-none";
+    "w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/50 shadow-[0_10px_30px_rgba(0,0,0,0.35)] focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/60 transition-all outline-none";
   const labelClasses =
-    "text-[12px] font-semibold uppercase tracking-[0.16em] text-white/60";
+    "text-[11px] font-semibold uppercase tracking-[0.22em] text-white/60 flex items-center gap-2";
 
   return (
     <div className="relative isolate min-h-screen overflow-hidden bg-arena-gradient text-white">
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-arena-grid bg-grid opacity-20 animate-grid-flow" />
-        <div className="absolute -left-24 -top-24 h-64 w-64 rounded-full bg-emerald-500/20 blur-3xl" />
+        <div className="absolute inset-0 bg-arena-grid bg-grid opacity-25 animate-grid-flow" />
+        <div className="absolute inset-0 bg-arena-noise opacity-45" />
+        <div className="absolute -left-24 -top-24 h-64 w-64 rounded-full bg-emerald-500/25 blur-3xl" />
         <div className="absolute -right-12 bottom-10 h-56 w-56 rounded-full bg-purple-500/25 blur-3xl" />
         <div className="absolute inset-0 bg-gradient-to-b from-slate-900/40 via-transparent to-slate-950/90" />
       </div>
 
-      <div className="relative min-h-screen max-w-7xl mx-auto px-4 sm:px-8 py-10 sm:py-12 lg:py-16 flex items-center">
-        <div className="w-full grid lg:grid-cols-[1.05fr_0.95fr] items-stretch gap-5 sm:gap-8">
-          <section className="hidden lg:flex rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-6 sm:p-8 shadow-[0_20px_80px_rgba(0,0,0,0.45)] flex-col gap-6">
+      <div className="relative min-h-screen max-w-7xl mx-auto px-4 sm:px-8 py-12 lg:py-16 flex items-center">
+        <div className="w-full grid lg:grid-cols-[1.05fr_0.95fr] items-stretch gap-6 sm:gap-8">
+          <section className="hidden lg:flex rounded-2xl border border-white/10 bg-slate-950/80 backdrop-blur-xl p-7 shadow-[0_20px_80px_rgba(0,0,0,0.5)] flex-col gap-6">
             <div className="space-y-3">
-              <p className="text-sm font-semibold text-emerald-300/80 tracking-wide">
-                Zero-scroll flow
+              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/60">
+                Arena setup
               </p>
-              <h1 className="text-3xl sm:text-4xl font-bold leading-[1.05]">
-                Build your duel with clarity.
+              <h1 className="text-3xl sm:text-4xl font-display font-bold leading-[1.05]">
+                Set the stage for your duel.
               </h1>
               <p className="text-base sm:text-lg text-white/70 max-w-2xl">
-                Blocks are compact and zoomed, aligned for any screen with no
-                scrolling needed.
+                Configure rival, arbiter and timings in one zoomed view. No
+                scrolling, no noise—just a dealer board ready to lock stakes.
               </p>
             </div>
 
             <div className="grid sm:grid-cols-3 gap-3">
-              <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/5 p-4">
-                <p className={labelClasses}>Step 01</p>
+              <div className="rounded-2xl border border-emerald-400/25 bg-emerald-500/5 p-4 space-y-2">
+                <p className={labelClasses}>Step 01 · Pick rival</p>
                 <p className="text-lg font-semibold text-white mt-1">
-                  Set rival
+                  Opponent & stake upfront.
                 </p>
                 <p className="text-sm text-white/60">
-                  Opponent wallet and stake up front.
+                  Who’s stepping into the pit with you.
                 </p>
               </div>
-              <div className="rounded-xl border border-purple-400/20 bg-purple-500/5 p-4">
-                <p className={labelClasses}>Step 02</p>
+              <div className="rounded-2xl border border-purple-400/25 bg-purple-500/5 p-4 space-y-2">
+                <p className={labelClasses}>Step 02 · Name the judge</p>
                 <p className="text-lg font-semibold text-white mt-1">
-                  Pick arbiter
+                  Arbiter wallet, yours or custom.
                 </p>
                 <p className="text-sm text-white/60">
-                  Use your wallet or choose another.
+                  Decide who can declare the winner.
                 </p>
               </div>
-              <div className="rounded-xl border border-white/15 bg-white/5 p-4">
-                <p className={labelClasses}>Step 03</p>
+              <div className="rounded-2xl border border-white/15 bg-white/5 p-4 space-y-2">
+                <p className={labelClasses}>Step 03 · Lock timelines</p>
                 <p className="text-lg font-semibold text-white mt-1">
-                  Lock timelines
+                  Deposit, crowd, resolve aligned.
                 </p>
                 <p className="text-sm text-white/60">
-                  Deposit, crowd, resolve side by side.
+                  Zero-scroll windows, all visible.
                 </p>
               </div>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-3">
-              <div className="rounded-xl border border-white/10 bg-black/20 p-3 flex items-center justify-between">
+              <div className="rounded-2xl border border-white/10 bg-black/30 p-4 flex items-center justify-between">
                 <div>
                   <p className="text-sm text-white/60">Wallet status</p>
-                  <p className="text-lg font-semibold">
-                    {statusLabel}
-                  </p>
+                  <p className="text-lg font-semibold">{statusLabel}</p>
                 </div>
                 <div
                   className={`h-3 w-3 rounded-full ${
@@ -276,29 +295,44 @@ export default function CreateBet() {
                   } animate-pulse`}
                 />
               </div>
-              <div className="rounded-xl border border-white/10 bg-black/20 p-3 flex items-center justify-between">
+              <div className="rounded-2xl border border-white/10 bg-black/30 p-4 flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-white/60">Zoom & responsive</p>
-                  <p className="text-lg font-semibold">100% visible layout</p>
+                  <p className="text-sm text-white/60">Layout</p>
+                  <p className="text-lg font-semibold">
+                    100% on screen · zero scroll
+                  </p>
                 </div>
-                <div className="text-sm text-white/60">0 scroll</div>
+                <div className="text-sm text-emerald-200 font-semibold">
+                  Dealer view
+                </div>
               </div>
+            </div>
+
+            <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-4">
+              <p className="text-sm text-white/70">
+                Crowd spread: 2% flows from spectators. Creators keep 50%, the
+                arbiter gets 20%, protocol earns 30%.
+              </p>
             </div>
           </section>
 
           <form
             onSubmit={handleSubmit}
-            className="rounded-2xl border border-emerald-500/20 bg-slate-950/80 backdrop-blur-xl shadow-[0_15px_60px_rgba(0,0,0,0.45)] p-5 sm:p-6 lg:p-7 grid gap-4"
+            className="rounded-2xl border border-emerald-500/25 bg-slate-950/85 backdrop-blur-xl shadow-[0_18px_70px_rgba(0,0,0,0.45)] p-5 sm:p-6 lg:p-7 grid gap-4"
           >
             <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className={labelClasses}>Create duel</p>
-                <h2 className="text-2xl sm:text-3xl font-bold leading-tight">
-                  Fill in and fire the transaction.
+              <div className="space-y-2">
+                <p className={labelClasses}>Host a duel</p>
+                <h2 className="text-2xl sm:text-3xl font-display font-bold leading-tight">
+                  Fill the ticket and open the arena.
                 </h2>
+                <p className="text-sm text-white/65">
+                  Opponent, arbiter and crowd timers align on one board. No
+                  hidden fields.
+                </p>
               </div>
-              <div className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-sm font-semibold">
-                Zoomed UX
+              <div className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-3 py-1 text-sm font-semibold">
+                Zero scroll
               </div>
             </div>
 
@@ -315,6 +349,9 @@ export default function CreateBet() {
                   placeholder="e.g. 8hD...k9A"
                   className={inputClasses}
                 />
+                <p className="text-xs text-white/60">
+                  The rival you’re calling into the arena.
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -331,34 +368,38 @@ export default function CreateBet() {
                   className={inputClasses}
                 />
                 <p className="text-xs text-white/60">
-                  You and your opponent deposit the same amount.
+                  You and your rival both deposit this amount.
                 </p>
               </div>
             </div>
 
-            <div className="grid sm:grid-cols-2 gap-3">
-              <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
+            <div className="grid sm:grid-cols-[1.05fr_0.95fr] gap-3">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="space-y-1">
                     <p className={labelClasses}>Arbiter</p>
                     <p className="text-sm text-white/70">
-                      Control who can declare the winner.
+                      Controls who can declare the winner.
                     </p>
                   </div>
-                  <label className="flex items-center gap-2 text-sm font-semibold">
-                    <input
-                      type="checkbox"
-                      checked={formData.useOwnWalletAsArbiter}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          useOwnWalletAsArbiter: e.target.checked,
-                        })
-                      }
-                      className="h-4 w-4 rounded border-white/30 bg-white/10 accent-emerald-500"
-                    />
-                    <span>Use my wallet</span>
-                  </label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFormData({
+                        ...formData,
+                        useOwnWalletAsArbiter: !formData.useOwnWalletAsArbiter,
+                      })
+                    }
+                    className={`rounded-full px-3 py-1 text-xs font-semibold border transition ${
+                      formData.useOwnWalletAsArbiter
+                        ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-100"
+                        : "border-white/20 bg-white/10 text-white/80 hover:border-emerald-300/40"
+                    }`}
+                  >
+                    {formData.useOwnWalletAsArbiter
+                      ? "Using your wallet"
+                      : "Set custom arbiter"}
+                  </button>
                 </div>
                 {!formData.useOwnWalletAsArbiter && (
                   <input
@@ -368,44 +409,43 @@ export default function CreateBet() {
                     onChange={(e) =>
                       setFormData({ ...formData, arbiterAddress: e.target.value })
                     }
-                    placeholder="Arbiter wallet"
+                    placeholder="Custom arbiter wallet"
                     className={inputClasses}
                   />
                 )}
+                <p className="text-xs text-white/60">
+                  Use your wallet as judge, or call a neutral arbiter.
+                </p>
               </div>
 
-              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                <p className={labelClasses}>Quick breakdown</p>
-                <div className="mt-2 space-y-2 text-sm text-white/70">
-                  <div className="flex items-center justify-between">
-                    <span>Crowd spread</span>
-                    <span className="font-semibold text-white">2%</span>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3">
+                <p className={labelClasses}>Crowd spread</p>
+                <div className="grid grid-cols-2 gap-2 text-sm text-white/80">
+                  <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/5 px-3 py-2">
+                    2% from crowd bets
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span>Creators</span>
-                    <span className="font-semibold text-white">50%</span>
+                  <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                    50% to creators
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span>Arbiter</span>
-                    <span className="font-semibold text-white">20%</span>
+                  <div className="rounded-xl border border-purple-400/20 bg-purple-500/10 px-3 py-2">
+                    20% to arbiter
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span>Protocol</span>
-                    <span className="font-semibold text-white">30%</span>
+                  <div className="rounded-xl border border-amber-300/30 bg-amber-400/10 px-3 py-2">
+                    30% to protocol
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <div className="flex items-center justify-between">
-                <p className={labelClasses}>Side-by-side timelines</p>
-                <span className="text-xs text-white/60">hours</span>
+                <p className={labelClasses}>Lock the timelines</p>
+                <span className="text-xs text-white/60">Hours</span>
               </div>
               <div className="mt-3 grid gap-3 sm:grid-cols-3">
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-white/80">
-                    Deposit
+                    Deposit window
                   </label>
                   <input
                     type="number"
@@ -427,7 +467,7 @@ export default function CreateBet() {
 
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-white/80">
-                    Crowd betting
+                    Crowd window
                   </label>
                   <input
                     type="number"
@@ -449,7 +489,7 @@ export default function CreateBet() {
 
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-white/80">
-                    Resolve
+                    Resolve after
                   </label>
                   <input
                     type="number"
@@ -471,24 +511,25 @@ export default function CreateBet() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4">
-              <p className={labelClasses}>Fee structure</p>
+            <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4">
+              <p className={labelClasses}>Betting slip summary</p>
               <p className="text-sm text-white/70 mt-2">
-                Crowd pays 2%. 50% to creators, 20% to the arbiter, 30% to the
-                protocol.
+                A Solana transaction will lock both stakes and kick off the
+                crowd market.
               </p>
             </div>
 
             <button
               type="submit"
               disabled={loading || !wallet.connected}
-              className="w-full rounded-xl bg-gradient-to-r from-emerald-500 to-green-400 px-4 py-3 text-lg font-semibold text-slate-950 shadow-lg shadow-emerald-500/30 transition hover:from-emerald-400 hover:to-green-300 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full rounded-2xl border border-emerald-400/50 bg-[linear-gradient(120deg,#22f2aa,#7c3aed,#22f2aa)] bg-[length:220%_220%] px-4 py-3 text-lg font-semibold text-slate-950 shadow-[0_20px_60px_rgba(34,242,170,0.35)] transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
+              style={{ animation: "shine 9s linear infinite" }}
             >
               {loading
-                ? "Creating..."
+                ? "Launching..."
                 : !wallet.connected
-                ? "Connect your wallet"
-                : "Create duel now"}
+                ? "Connect to open arena"
+                : "Open arena now"}
             </button>
           </form>
         </div>

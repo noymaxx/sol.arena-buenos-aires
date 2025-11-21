@@ -15,14 +15,21 @@ export function BetCard({ betPubkey, bet }: BetCardProps) {
   const supportB = bet?.netSupportB ? lamportsToSol(bet.netSupportB) : 0;
   const totalCrowdPool = supportA + supportB;
   const stakeSOL = lamportsToSol(bet?.stakeLamports);
-
   const total = supportA + supportB || 1;
   const percentA = ((supportA / total) * 100).toFixed(1);
   const percentB = ((supportB / total) * 100).toFixed(1);
 
+  const shorten = (value: any) => {
+    if (!value) return "Unknown";
+    const asString = value?.toBase58?.() || value?.toString?.() || String(value);
+    return `${asString.slice(0, 4)}...${asString.slice(-3)}`;
+  };
+
   const getStatus = () => {
-    if ("resolved" in bet.status) return "Resolved";
-    if ("cancelled" in bet.status) return "Cancelled";
+    const statusField = bet?.status;
+    if (!statusField) return "Open";
+    if ("resolved" in statusField) return "Resolved";
+    if ("cancelled" in statusField) return "Cancelled";
 
     const now = Date.now() / 1000;
     if (bet?.deadlineDuel && now < safeToNumber(bet.deadlineDuel)) {
@@ -35,72 +42,178 @@ export function BetCard({ betPubkey, bet }: BetCardProps) {
     return "Open";
   };
 
+  const statusMeta = () => {
+    const status = getStatus();
+    if (status === "Resolved")
+      return {
+        label: "Settled",
+        dot: "bg-emerald-400",
+        badge:
+          "border border-emerald-400/40 bg-emerald-500/10 text-emerald-100",
+      };
+    if (status === "Cancelled")
+      return {
+        label: "Cancelled",
+        dot: "bg-red-400",
+        badge: "border border-red-400/40 bg-red-500/10 text-red-100",
+      };
+    if (status === "Crowd open")
+      return {
+        label: "Crowd open",
+        dot: "bg-purple-300",
+        badge: "border border-purple-400/40 bg-purple-500/10 text-purple-100",
+      };
+    if (status === "Awaiting deposits")
+      return {
+        label: "Deposits open",
+        dot: "bg-amber-300",
+        badge: "border border-amber-300/40 bg-amber-500/10 text-amber-100",
+      };
+    if (status === "Awaiting arbiter")
+      return {
+        label: "Awaiting judge",
+        dot: "bg-sky-300",
+        badge: "border border-sky-300/40 bg-sky-500/10 text-sky-100",
+      };
+    return {
+      label: "Arena open",
+      dot: "bg-white/60",
+      badge: "border border-white/20 bg-white/5 text-white/80",
+    };
+  };
+
+  const formatCountdown = () => {
+    const now = Date.now() / 1000;
+    const closesAt = safeToNumber(bet?.deadlineCrowd);
+    if (!closesAt) return "—";
+    const diff = closesAt - now;
+    if (diff <= 0) return "Window closed";
+    const hours = Math.floor(diff / 3600);
+    const minutes = Math.floor((diff % 3600) / 60);
+    return `${String(hours).padStart(2, "0")}h ${String(minutes).padStart(
+      2,
+      "0"
+    )}m`;
+  };
+
+  const meta = statusMeta();
+  const duelNumber = betPubkey.toString().slice(0, 6);
+  const minEntry = Math.max(0.01, Number((stakeSOL || 0) / 10)).toFixed(2);
+
   return (
-    <Link href={`/bet/${betPubkey.toString()}`}>
-      <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-6 cursor-pointer shadow-[0_15px_60px_rgba(0,0,0,0.35)] hover:border-emerald-400/30 transition">
-        <div className="flex justify-between items-start mb-4">
+    <Link
+      href={`/bet/${betPubkey.toString()}`}
+      className="group relative block overflow-hidden rounded-2xl border border-white/10 bg-slate-950/70 p-5 shadow-[0_15px_60px_rgba(0,0,0,0.4)] transition hover:-translate-y-1 hover:border-emerald-400/40"
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(34,242,170,0.08),transparent_32%),radial-gradient(circle_at_80%_60%,rgba(124,58,237,0.08),transparent_30%)] opacity-80" />
+      <div className="relative space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span
+              className={`h-2.5 w-2.5 rounded-full shadow-[0_0_12px_rgba(34,242,170,0.5)] ${meta.dot}`}
+            />
+            <span
+              className={`text-[11px] font-semibold uppercase tracking-[0.24em] ${meta.badge}`}
+            >
+              {meta.label}
+            </span>
+          </div>
+          <span className="text-xs text-white/50 font-mono">
+            #{duelNumber}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between gap-3">
           <div>
-            <h3 className="text-lg font-semibold text-white">
-              sol.arena #{betPubkey.toString().slice(0, 8)}
-            </h3>
-            <p className="text-sm text-white/60">
-              {bet?.userA?.toString()?.slice(0, 8) || "Unknown"} vs{" "}
-              {bet?.userB?.toString()?.slice(0, 8) || "Unknown"}
+            <p className="text-xs text-white/50">Challenger A</p>
+            <p className="text-lg font-semibold text-white">
+              {shorten(bet?.userA)}
             </p>
           </div>
-          {(() => {
-            const status = getStatus();
-            const badge =
-              status === "Resolved"
-                ? "bg-emerald-500/20 text-emerald-200 border border-emerald-400/40"
-                : status === "Crowd open"
-                ? "bg-purple-500/15 text-purple-100 border border-purple-400/40"
-                : "bg-amber-400/15 text-amber-100 border border-amber-300/40";
-            return (
-          <span
-              className={`px-3 py-1 rounded-full text-xs font-semibold ${badge}`}
-          >
-              {status}
+          <div className="flex items-center gap-2">
+            <div className="h-10 w-10 rounded-full border border-white/10 bg-white/5 flex items-center justify-center text-xs font-semibold uppercase tracking-wide text-white/80">
+              VS
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-white/50">Challenger B</p>
+            <p className="text-lg font-semibold text-purple-100">
+              {shorten(bet?.userB)}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/5 px-3 py-2 flex items-center gap-2 text-emerald-100">
+            <span className="h-2 w-2 rounded-full bg-emerald-300" />
+            {percentA}% · {supportA.toFixed(2)} ◎
+          </div>
+          <div className="rounded-xl border border-purple-400/25 bg-purple-500/10 px-3 py-2 flex items-center justify-end gap-2 text-purple-100">
+            {supportB.toFixed(2)} ◎ · {percentB}%
+            <span className="h-2 w-2 rounded-full bg-purple-300" />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex gap-1 h-2.5 rounded-full overflow-hidden bg-white/10">
+            <div
+              className="bg-gradient-to-r from-emerald-400 to-emerald-200"
+              style={{ width: `${percentA}%` }}
+            />
+            <div
+              className="bg-gradient-to-r from-purple-500 to-indigo-500"
+              style={{ width: `${percentB}%` }}
+            />
+          </div>
+          <div className="flex items-center justify-between text-[11px] text-white/60">
+            <span>Arbiter: {shorten(bet?.arbiter)}</span>
+            <span>Crowd closes in {formatCountdown()}</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+            <p className="text-[11px] uppercase tracking-[0.14em] text-white/50">
+              Stake
+            </p>
+            <p className="font-semibold text-white">
+              {stakeSOL.toFixed(2)} ◎ each
+            </p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-right">
+            <p className="text-[11px] uppercase tracking-[0.14em] text-white/50">
+              Crowd pool
+            </p>
+            <p className="font-semibold text-emerald-200">
+              {totalCrowdPool.toFixed(2)} ◎
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-center text-sm font-semibold text-emerald-100 shadow-[0_10px_30px_rgba(34,242,170,0.2)] transition group-hover:shadow-[0_15px_40px_rgba(34,242,170,0.28)]">
+            Back {shorten(bet?.userA)}
+          </div>
+          <div className="rounded-xl border border-purple-400/40 bg-purple-500/15 px-4 py-3 text-center text-sm font-semibold text-purple-50 shadow-[0_10px_30px_rgba(124,58,237,0.2)] transition group-hover:shadow-[0_15px_40px_rgba(124,58,237,0.3)]">
+            Back {shorten(bet?.userB)}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between text-xs text-white/60">
+          <span className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-amber-300" />
+            From {minEntry} ◎ · min slip
           </span>
-            );
-          })()}
+          <span className="text-white/60">Tap to open duel</span>
         </div>
 
-        <div className="space-y-3">
-          <div>
-            <div className="flex justify-between text-sm mb-1">
-              <span className="text-white/70">Stake</span>
-              <span className="font-semibold text-white">
-                {stakeSOL.toFixed(2)} SOL each
-              </span>
-            </div>
+        {bet?.winnerSide && (
+          <div className="pt-3 border-t border-white/10">
+            <p className="text-sm font-semibold text-emerald-200">
+              Winner: Side {bet.winnerSide.a ? "A" : "B"}
+            </p>
           </div>
-
-          <div>
-            <div className="flex justify-between text-sm mb-1">
-              <span className="text-white/70">Crowd Pool</span>
-              <span className="font-semibold text-white">
-                {totalCrowdPool.toFixed(2)} SOL
-              </span>
-            </div>
-            <div className="flex gap-1 h-2 rounded-full overflow-hidden bg-white/10">
-              <div className="bg-gradient-to-r from-emerald-400 to-green-500" style={{ width: `${percentA}%` }} />
-              <div className="bg-gradient-to-r from-purple-500 to-indigo-500" style={{ width: `${percentB}%` }} />
-            </div>
-            <div className="flex justify-between text-xs text-white/60 mt-1">
-              <span>Side A: {percentA}%</span>
-              <span>Side B: {percentB}%</span>
-            </div>
-          </div>
-
-          {bet?.winnerSide && (
-            <div className="pt-3 border-t border-white/10">
-              <p className="text-sm font-semibold text-emerald-200">
-                Winner: Side {bet.winnerSide.a ? "A" : "B"}
-              </p>
-            </div>
-          )}
-        </div>
+        )}
       </div>
     </Link>
   );

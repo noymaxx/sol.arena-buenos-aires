@@ -9,40 +9,35 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        primary: {
-          50: '#f0f9ff',
-          100: '#e0f2fe',
-          200: '#bae6fd',
-          300: '#7dd3fc',
-          400: '#38bdf8',
-          500: '#0ea5e9',
-          600: '#0284c7',
-          700: '#0369a1',
-          800: '#075985',
-          900: '#0c4a6e',
-        },
         arena: {
-          bg: '#020616',
-          overlay: '#04121f',
-          accent: '#10b981', // emerald-500
-          secondary: '#8b5cf6', // purple-500
+          base: '#02030A',
+          panel: '#090f1d',
+          overlay: '#0d1528',
+          accent: '#22F2AA',
+          indigo: '#7C3AED',
+          gold: '#FACC15',
+          muted: '#9CA3AF',
         }
       },
       fontFamily: {
-        'arena': ['Space Grotesk', 'system-ui', 'sans-serif'],
+        'display': ['var(--font-display)', 'Space Grotesk', 'Sora', 'system-ui', 'sans-serif'],
+        'body': ['var(--font-body)', 'DM Sans', 'Inter', 'system-ui', 'sans-serif'],
         'mono': ['JetBrains Mono', 'Fira Code', 'monospace'],
       },
       backgroundImage: {
-        'arena-gradient': 'linear-gradient(135deg, #020616 0%, #04121f 100%)',
-        'arena-grid': 'linear-gradient(rgba(16, 185, 129, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(16, 185, 129, 0.1) 1px, transparent 1px)',
+        'arena-gradient': 'radial-gradient(circle at 10% 20%, rgba(34, 242, 170, 0.08), transparent 25%), radial-gradient(circle at 85% 12%, rgba(124, 58, 237, 0.10), transparent 28%), linear-gradient(135deg, #02030A 0%, #060b19 45%, #050a17 100%)',
+        'arena-grid': 'linear-gradient(rgba(34, 242, 170, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(124, 58, 237, 0.08) 1px, transparent 1px)',
+        'arena-noise': 'radial-gradient(circle at 30% 50%, rgba(250, 204, 21, 0.06), transparent 22%), radial-gradient(circle at 80% 70%, rgba(124, 58, 237, 0.06), transparent 20%)',
       },
       backgroundSize: {
-        'grid': '50px 50px',
+        'grid': '42px 42px',
       },
       animation: {
         'grid-flow': 'grid-flow 20s linear infinite',
         'glow': 'glow 2s ease-in-out infinite alternate',
         'float': 'float 3s ease-in-out infinite',
+        'pulse-border': 'pulse-border 3s ease-in-out infinite',
+        'shine': 'shine 6s linear infinite',
       },
       keyframes: {
         'grid-flow': {
@@ -56,6 +51,14 @@ const config: Config = {
         'float': {
           '0%, 100%': { transform: 'translateY(0px)' },
           '50%': { transform: 'translateY(-10px)' }
+        },
+        'pulse-border': {
+          '0%, 100%': { boxShadow: '0 0 0 0 rgba(34, 242, 170, 0.18)' },
+          '50%': { boxShadow: '0 0 0 8px rgba(124, 58, 237, 0.09)' }
+        },
+        'shine': {
+          '0%': { backgroundPosition: '-200% 0' },
+          '100%': { backgroundPosition: '200% 0' },
         }
       }
     },
