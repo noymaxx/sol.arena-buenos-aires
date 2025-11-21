@@ -2,11 +2,66 @@ import { Program, AnchorProvider, BN, Idl } from "@coral-xyz/anchor";
 import { PublicKey, Connection } from "@solana/web3.js";
 import { AnchorWallet } from "@solana/wallet-adapter-react";
 
+const ACCOUNT_DISCRIMINATORS: Record<string, number[]> = {
+  Bet: [147, 23, 35, 59, 15, 75, 155, 32],
+  SupportPosition: [202, 124, 14, 86, 154, 235, 215, 186],
+};
+
 export const PROGRAM_ID = new PublicKey("5iRExHjkQzwidM7EwCu8eVpeBAPnJ8qVuHi3y7gZbaeX");
 
 let cachedIdl: any = null;
 let cachedProgram: Program | null = null;
 let cachedWallet: string | null = null;
+
+function ensureProgramId(idl: any): string {
+  const programId =
+    idl?.address ||
+    idl?.metadata?.address ||
+    PROGRAM_ID?.toBase58?.();
+
+  if (!programId) {
+    throw new Error("Program address missing from IDL");
+  }
+
+  if (idl.address !== programId) {
+    idl.address = programId;
+  }
+
+  if (idl.metadata?.address !== programId) {
+    idl.metadata = { ...(idl.metadata || {}), address: programId };
+  }
+
+  return programId;
+}
+
+function hydrateIdl(idl: any) {
+  if (!idl) return idl;
+
+  if (idl.accounts) {
+    for (const acc of idl.accounts) {
+      if (!acc.discriminator || !Array.isArray(acc.discriminator)) {
+        acc.discriminator =
+          ACCOUNT_DISCRIMINATORS[acc.name] ??
+          ACCOUNT_DISCRIMINATORS[
+            acc.name?.charAt(0)?.toUpperCase() + acc.name?.slice(1)
+          ] ??
+          [];
+      }
+    }
+  }
+
+  if (idl.metadata) {
+    idl.metadata = {
+      name: idl.metadata.name ?? idl.name,
+      ...idl.metadata,
+    };
+  } else {
+    idl.metadata = { name: idl.name, address: idl.address };
+  }
+
+  ensureProgramId(idl);
+  return idl;
+}
 
 export function clearProgramCache() {
   cachedIdl = null;
@@ -15,7 +70,7 @@ export function clearProgramCache() {
 }
 
 async function loadIdl() {
-  if (cachedIdl) return cachedIdl;
+  if (cachedIdl) return hydrateIdl(cachedIdl);
 
   const response = await fetch('/idl/duel_crowd_bets.json');
   if (!response.ok) {
@@ -23,6 +78,9 @@ async function loadIdl() {
   }
 
   const idlJson = await response.json();
+
+  // Ensure account discriminators and metadata are present before transformation.
+  hydrateIdl(idlJson);
 
   // Normalize IDL so Anchor can parse it correctly
   const normalizeTypes = (value: any): any => {
@@ -120,11 +178,9 @@ async function loadIdl() {
 
   normalizeDefined(idlJson);
 
-  // Anchor Program ctor expects `address` at the root of the IDL
-  // (metadata.address is ignored). Fill it if missing.
-  if (!idlJson.address) {
-    idlJson.address = idlJson.metadata?.address ?? PROGRAM_ID.toBase58();
-  }
+  // Anchor Program ctor expects `address` and discriminators in the IDL.
+  // Force the canonical values to avoid ambiguity.
+  hydrateIdl(idlJson);
 
   cachedIdl = idlJson;
   return cachedIdl;
@@ -185,10 +241,14 @@ export async function getProgram(
       AnchorProvider.defaultOptions()
     );
 
-    const program = new Program(idl as Idl, provider);
+    const hydratedIdl = hydrateIdl(idl);
+    const programId = ensureProgramId(hydratedIdl);
+    cachedIdl = hydratedIdl;
+
+    const program = new Program(hydratedIdl as Idl, provider);
 
     console.log("✅ Program created:", {
-      programId: program.programId.toBase58(),
+      programId,
       hasMethods: !!program.methods,
     });
 

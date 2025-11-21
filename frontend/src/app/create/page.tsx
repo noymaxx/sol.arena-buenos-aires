@@ -49,17 +49,24 @@ export default function CreateBet() {
       // Validate inputs
       let opponentPubkey: PublicKey;
       let arbiterPubkey: PublicKey;
+      const userWalletPubkey = wallet.publicKey;
+
+      if (!userWalletPubkey) {
+        toast.error("Wallet not connected");
+        return;
+      }
+
       try {
         opponentPubkey = new PublicKey(formData.opponentAddress.trim());
         arbiterPubkey = formData.useOwnWalletAsArbiter
-          ? wallet.publicKey
+          ? userWalletPubkey
           : new PublicKey(formData.arbiterAddress.trim());
       } catch (err) {
         toast.error("Invalid address provided");
         return;
       }
 
-      const userA = wallet.publicKey;
+      const userA = userWalletPubkey;
       const userB = opponentPubkey;
 
       // Calculate timestamps
@@ -134,7 +141,7 @@ export default function CreateBet() {
       try {
         const protocolTreasuryStr =
           process.env.NEXT_PUBLIC_PROTOCOL_TREASURY ||
-          wallet.publicKey.toBase58();
+          userWalletPubkey.toBase58();
         protocolTreasury = new PublicKey(protocolTreasuryStr.trim());
       } catch (err) {
         toast.error("Invalid protocol treasury address");
