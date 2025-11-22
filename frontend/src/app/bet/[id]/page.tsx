@@ -12,6 +12,7 @@ import {
   safeToNumber,
 } from "@/lib/anchorClient";
 import toast from "react-hot-toast";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 
 export default function BetDetail() {
   const params = useParams();
@@ -34,7 +35,7 @@ export default function BetDetail() {
     try {
       setLoading(true);
       const program = await getProgram(connection, wallet as any, true);
-      // @ts-ignore
+      // @ts-ignore - anchor type inference
       const betAccount = await program.account.bet.fetch(betPubkey);
       setBet(betAccount);
     } catch (error) {
@@ -56,7 +57,7 @@ export default function BetDetail() {
       const program = await getProgram(connection, wallet as any);
 
       // @ts-ignore - Anchor types issue
-      const tx = await (program as any).methods
+      await (program as any).methods
         .depositParticipant()
         .accounts({
           participant: wallet.publicKey,
@@ -101,7 +102,7 @@ export default function BetDetail() {
 
       const sideEnum = side === "A" ? { a: {} } : { b: {} };
 
-      const tx = await (program as any).methods
+      await (program as any).methods
         .supportBet(sideEnum, amount)
         .accounts({
           bettor: wallet.publicKey,
@@ -132,7 +133,7 @@ export default function BetDetail() {
       const program = await getProgram(connection, wallet as any);
       const sideEnum = side === "A" ? { a: {} } : { b: {} };
 
-      const tx = await (program as any).methods
+      await (program as any).methods
         .declareWinner(sideEnum)
         .accounts({
           arbiter: wallet.publicKey,
@@ -160,7 +161,7 @@ export default function BetDetail() {
       setActionLoading(true);
       const program = await getProgram(connection, wallet as any);
 
-      const tx = await (program as any).methods
+      await (program as any).methods
         .withdrawPrincipal()
         .accounts({
           winner: wallet.publicKey,
@@ -194,7 +195,7 @@ export default function BetDetail() {
         side
       );
 
-      const tx = await (program as any).methods
+      await (program as any).methods
         .claimSupport()
         .accounts({
           bettor: wallet.publicKey,
@@ -215,230 +216,526 @@ export default function BetDetail() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      <div className="flex min-h-screen items-center justify-center text-white/70">
+        <div className="h-12 w-12 animate-spin rounded-full border-2 border-white/20 border-t-emerald-400" />
       </div>
     );
   }
 
   if (!bet) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-20 text-center">
-        <p className="text-gray-500">Bet not found</p>
+      <div className="max-w-4xl mx-auto px-4 py-20 text-center text-white/70">
+        <p>Bet not found</p>
       </div>
     );
   }
 
   const isResolved = "resolved" in bet.status;
+  const isCancelled = "cancelled" in bet.status;
   const isUserA = wallet.publicKey?.equals(bet.userA);
   const isUserB = wallet.publicKey?.equals(bet.userB);
   const isArbiter = wallet.publicKey?.equals(bet.arbiter);
   const now = Date.now() / 1000;
 
+  const supportA = lamportsToSol(bet.netSupportA || 0);
+  const supportB = lamportsToSol(bet.netSupportB || 0);
+  const totalSupport = supportA + supportB;
+  const stakeSOL = lamportsToSol(bet.stakeLamports || 0);
+  const percentA = totalSupport
+    ? Math.round((supportA / totalSupport) * 100)
+    : 50;
+  const percentB = 100 - percentA;
+
+  const marketOpen =
+    bet.userADeposited &&
+    bet.userBDeposited &&
+    !isResolved &&
+    !isCancelled &&
+    now < safeToNumber(bet.deadlineCrowd);
+  const awaitingArbiter =
+    !isResolved &&
+    !isCancelled &&
+    bet.userADeposited &&
+    bet.userBDeposited &&
+    now >= safeToNumber(bet.deadlineCrowd) &&
+    now < safeToNumber(bet.resolveTs);
+
+  const formatDate = (ts?: any) =>
+    ts ? new Date(safeToNumber(ts) * 1000).toLocaleString() : "—";
+
+  const formatCountdown = (target?: any) => {
+    if (!target) return "—";
+    const diff = safeToNumber(target) - now;
+    if (diff <= 0) return "Closed";
+    const hours = Math.floor(diff / 3600);
+    const minutes = Math.floor((diff % 3600) / 60);
+    return `${String(hours).padStart(2, "0")}h ${String(minutes).padStart(
+      2,
+      "0"
+    )}m`;
+  };
+
+  const statusMeta = () => {
+    if (isCancelled)
+      return {
+        label: "Cancelled",
+        badge: "border-red-400/40 bg-red-500/10 text-red-100",
+        dot: "bg-red-400",
+        desc: "This duel was cancelled",
+      };
+    if (isResolved)
+      return {
+        label: "Settled",
+        badge: "border-emerald-400/40 bg-emerald-500/10 text-emerald-100",
+        dot: "bg-emerald-400",
+        desc: "Crowd market closed",
+      };
+    if (!bet.userADeposited || !bet.userBDeposited)
+      return {
+        label: "Awaiting deposits",
+        badge: "border-amber-300/40 bg-amber-500/10 text-amber-100",
+        dot: "bg-amber-300",
+        desc: "Players need to post stakes",
+      };
+    if (marketOpen)
+      return {
+        label: "Crowd open",
+        badge: "border-purple-400/40 bg-purple-500/10 text-purple-100",
+        dot: "bg-purple-300",
+        desc: "Prediction market live",
+      };
+    if (awaitingArbiter)
+      return {
+        label: "Awaiting judge",
+        badge: "border-sky-300/40 bg-sky-500/10 text-sky-100",
+        dot: "bg-sky-300",
+        desc: "Crowd closed, waiting resolution",
+      };
+    return {
+      label: "Open",
+      badge: "border-white/20 bg-white/5 text-white/80",
+      dot: "bg-white/60",
+      desc: "On-chain duel live",
+    };
+  };
+
+  const meta = statusMeta();
+
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <button
-        onClick={() => router.back()}
-        className="mb-6 text-primary-600 hover:text-primary-700 flex items-center"
-      >
-        ← Back
-      </button>
+    <div className="relative min-h-screen overflow-hidden">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-0 bg-arena-gradient" />
+        <div className="absolute inset-0 bg-arena-grid bg-grid opacity-25 animate-grid-flow" />
+        <div className="absolute inset-0 bg-arena-noise opacity-50" />
+        <div className="absolute -left-24 top-16 h-72 w-72 rounded-full bg-emerald-500/15 blur-3xl" />
+        <div className="absolute -right-10 bottom-24 h-80 w-80 rounded-full bg-purple-500/15 blur-3xl" />
+      </div>
 
-      <div className="bg-white rounded-lg shadow-lg p-8">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Duel #{betPubkey.toString().slice(0, 8)}
-          </h1>
-          <p className="text-gray-600">
-            {bet.userA.toString().slice(0, 12)}... vs{" "}
-            {bet.userB.toString().slice(0, 12)}...
-          </p>
+      <div className="relative z-10 mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-10 lg:py-16">
+        <Breadcrumbs />
+
+        <div className="mb-6 flex flex-wrap items-center gap-3 text-sm text-white/70">
+          <button
+            onClick={() => router.back()}
+            className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-white/80 transition hover:border-emerald-400/40 hover:text-white"
+          >
+            ← Back to arena
+          </button>
+          <span className="text-white/40">•</span>
+          <span className="font-mono text-white/80">
+            #{betPubkey.toString().slice(0, 8)}
+          </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div className="bg-blue-50 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-blue-900 mb-2">Side A</h3>
-            <p className="text-sm text-gray-600 mb-1">
-              {bet.userA.toString().slice(0, 20)}...
-            </p>
-            <p className="text-2xl font-bold text-blue-600">
-              {lamportsToSol(bet.netSupportA).toFixed(2)} SOL
-            </p>
-            <p className="text-sm text-gray-500">Crowd support</p>
-            {bet.userADeposited && (
-              <span className="inline-block mt-2 px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
-                Deposited
-              </span>
-            )}
+        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-950/80 p-6 sm:p-8 shadow-[0_18px_70px_rgba(0,0,0,0.5)]">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(34,242,170,0.08),transparent_32%),radial-gradient(circle_at_80%_30%,rgba(124,58,237,0.12),transparent_30%)] opacity-80" />
+
+            <div className="relative space-y-6">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="space-y-2">
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-white/60">
+                    Duel overview
+                  </p>
+                  <h1 className="font-display text-3xl sm:text-4xl font-bold leading-tight">
+                    Duel #{betPubkey.toString().slice(0, 8)}
+                  </h1>
+                  <p className="text-white/70">
+                    {bet.userA.toString().slice(0, 12)}... vs{" "}
+                    {bet.userB.toString().slice(0, 12)}...
+                  </p>
+                </div>
+
+                <div className="flex flex-col items-end gap-2">
+                  <span
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${meta.badge}`}
+                  >
+                    <span
+                      className={`h-2.5 w-2.5 rounded-full ${meta.dot}`}
+                    />
+                    {meta.label}
+                  </span>
+                  <p className="text-xs text-white/60">{meta.desc}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="relative overflow-hidden rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-4 shadow-[0_10px_40px_rgba(34,242,170,0.18)]">
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/15 via-transparent to-white/5" />
+                  <div className="relative space-y-2">
+                    <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.16em] text-emerald-100">
+                      Side A
+                      {bet.userADeposited && (
+                        <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] text-emerald-100 border border-emerald-400/40">
+                          Deposited
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-emerald-50">
+                      {bet.userA.toString().slice(0, 20)}...
+                    </p>
+                    <p className="text-2xl font-semibold text-emerald-100">
+                      {supportA.toFixed(2)} ◎
+                    </p>
+                    <p className="text-xs text-emerald-100/80">
+                      Crowd backing · {percentA}% share
+                    </p>
+                  </div>
+                </div>
+
+                <div className="relative overflow-hidden rounded-2xl border border-purple-400/35 bg-purple-500/10 p-4 shadow-[0_10px_40px_rgba(124,58,237,0.22)]">
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-purple-500/10 via-transparent to-white/5" />
+                  <div className="relative space-y-2">
+                    <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.16em] text-purple-100">
+                      Side B
+                      {bet.userBDeposited && (
+                        <span className="rounded-full bg-purple-500/20 px-2 py-0.5 text-[10px] text-purple-100 border border-purple-300/40">
+                          Deposited
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-purple-100">
+                      {bet.userB.toString().slice(0, 20)}...
+                    </p>
+                    <p className="text-2xl font-semibold text-purple-100">
+                      {supportB.toFixed(2)} ◎
+                    </p>
+                    <p className="text-xs text-purple-100/80">
+                      Crowd backing · {percentB}% share
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-sm text-white/70">
+                  <span>Prediction market pool</span>
+                  <span className="font-semibold text-white">
+                    {totalSupport.toFixed(2)} ◎ total
+                  </span>
+                </div>
+                <div className="relative h-3 overflow-hidden rounded-full border border-white/10 bg-white/10">
+                  <div
+                    className="absolute left-0 top-0 h-full bg-gradient-to-r from-emerald-400 to-emerald-200"
+                    style={{ width: `${percentA}%` }}
+                  />
+                  <div
+                    className="absolute right-0 top-0 h-full bg-gradient-to-r from-purple-500 to-indigo-500"
+                    style={{ width: `${percentB}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-xs text-white/60">
+                  <span>Side A crowd · {supportA.toFixed(2)} ◎</span>
+                  <span>Side B crowd · {supportB.toFixed(2)} ◎</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-white/50">
+                    Stake per side
+                  </p>
+                  <p className="text-lg font-semibold text-white">
+                    {stakeSOL.toFixed(2)} ◎
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-white/50">
+                    Crowd fee
+                  </p>
+                  <p className="text-lg font-semibold text-emerald-200">
+                    {(bet.spreadBps / 100).toFixed(1)}%
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-white/50">
+                    Crowd closes
+                  </p>
+                  <p className="text-sm font-semibold text-white">
+                    {formatCountdown(bet.deadlineCrowd)}
+                  </p>
+                  <p className="text-xs text-white/50">
+                    {formatDate(bet.deadlineCrowd)}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-white/50">
+                    Resolve by
+                  </p>
+                  <p className="text-sm font-semibold text-white">
+                    {formatCountdown(bet.resolveTs)}
+                  </p>
+                  <p className="text-xs text-white/50">
+                    {formatDate(bet.resolveTs)}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="bg-red-50 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-red-900 mb-2">Side B</h3>
-            <p className="text-sm text-gray-600 mb-1">
-              {bet.userB.toString().slice(0, 20)}...
-            </p>
-            <p className="text-2xl font-bold text-red-600">
-              {lamportsToSol(bet.netSupportB).toFixed(2)} SOL
-            </p>
-            <p className="text-sm text-gray-500">Crowd support</p>
-            {bet.userBDeposited && (
-              <span className="inline-block mt-2 px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
-                Deposited
-              </span>
+          <div className="space-y-4">
+            <div className="relative overflow-hidden rounded-3xl border border-emerald-400/25 bg-slate-950/80 p-6 shadow-[0_15px_60px_rgba(0,0,0,0.45)]">
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(34,242,170,0.12),transparent_32%),radial-gradient(circle_at_90%_10%,rgba(124,58,237,0.12),transparent_30%)] opacity-70" />
+              <div className="relative space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-white/60">
+                      Prediction market
+                    </p>
+                    <h3 className="text-2xl font-semibold text-white">
+                      Enter the book
+                    </h3>
+                    <p className="text-sm text-white/60">
+                      Pick your side and back it with SOL while the crowd
+                      window is open.
+                    </p>
+                  </div>
+                  <span
+                    className={`rounded-full border px-3 py-1 text-xs font-semibold ${meta.badge}`}
+                  >
+                    {meta.label}
+                  </span>
+                </div>
+
+                {isCancelled ? (
+                  <div className="rounded-2xl border border-red-400/40 bg-red-500/15 p-4 text-red-100">
+                    <p className="text-sm font-semibold">
+                      Duel cancelled
+                    </p>
+                    <p className="text-xs text-red-100/80">
+                      Prediction market and payouts are disabled for cancelled
+                      duels.
+                    </p>
+                  </div>
+                ) : !bet.userADeposited || !bet.userBDeposited ? (
+                  <div className="rounded-2xl border border-amber-300/30 bg-amber-500/10 p-4 text-amber-50">
+                    <p className="text-sm font-semibold">
+                      Awaiting player stakes
+                    </p>
+                    <p className="text-sm text-amber-100/80">
+                      Both challengers must deposit {stakeSOL.toFixed(2)} ◎
+                      each before the crowd market opens.
+                    </p>
+                    {(isUserA && !bet.userADeposited) ||
+                    (isUserB && !bet.userBDeposited) ? (
+                      <button
+                        onClick={handleDeposit}
+                        disabled={actionLoading}
+                        className="mt-3 w-full rounded-xl bg-gradient-to-r from-emerald-400 to-purple-500 px-4 py-3 text-sm font-semibold text-slate-950 shadow-[0_12px_40px_rgba(124,58,237,0.35)] transition hover:scale-[1.01] disabled:opacity-60"
+                      >
+                        {actionLoading
+                          ? "Processing..."
+                          : `Deposit ${stakeSOL.toFixed(2)} ◎ now`}
+                      </button>
+                    ) : (
+                      <p className="mt-2 text-xs text-amber-100/70">
+                        Connect as a player wallet to post your stake.
+                      </p>
+                    )}
+                  </div>
+                ) : marketOpen ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-2 text-sm font-semibold">
+                      <button
+                        onClick={() => setSelectedSide("A")}
+                        className={`rounded-xl border px-4 py-3 transition ${
+                          selectedSide === "A"
+                            ? "border-emerald-400/60 bg-emerald-500/15 text-emerald-100 shadow-[0_10px_30px_rgba(34,242,170,0.18)]"
+                            : "border-white/10 bg-white/5 text-white/70 hover:border-emerald-300/40 hover:text-white"
+                        }`}
+                      >
+                        Back Side A
+                      </button>
+                      <button
+                        onClick={() => setSelectedSide("B")}
+                        className={`rounded-xl border px-4 py-3 transition ${
+                          selectedSide === "B"
+                            ? "border-purple-400/60 bg-purple-500/20 text-purple-100 shadow-[0_10px_30px_rgba(124,58,237,0.18)]"
+                            : "border-white/10 bg-white/5 text-white/70 hover:border-purple-300/40 hover:text-white"
+                        }`}
+                      >
+                        Back Side B
+                      </button>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <label className="text-xs uppercase tracking-[0.16em] text-white/50">
+                        Amount (SOL)
+                      </label>
+                      <input
+                        type="number"
+                        value={supportAmount}
+                        onChange={(e) => setSupportAmount(e.target.value)}
+                        min="0.1"
+                        step="0.1"
+                        className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900/80 px-4 py-3 text-white shadow-inner focus:border-emerald-400 focus:outline-none"
+                        placeholder="0.50"
+                      />
+                      <p className="mt-2 text-xs text-white/60">
+                        Market closes in {formatCountdown(bet.deadlineCrowd)}.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleSupport(selectedSide)}
+                      disabled={actionLoading}
+                      className="w-full rounded-xl bg-gradient-to-r from-emerald-400 via-white to-purple-500 px-5 py-3 text-slate-950 font-semibold shadow-[0_15px_50px_rgba(124,58,237,0.35)] transition hover:scale-[1.01] disabled:opacity-60"
+                    >
+                      {actionLoading
+                        ? "Processing..."
+                        : `Enter ${supportAmount} ◎ on Side ${selectedSide}`}
+                    </button>
+                  </div>
+                ) : isResolved ? (
+                  <div className="rounded-2xl border border-emerald-300/30 bg-emerald-500/10 p-4 text-emerald-50">
+                    <p className="text-sm font-semibold">
+                      Market settled · winner declared
+                    </p>
+                    <p className="text-xs text-emerald-100/70">
+                      Use the payout section below to withdraw principal or
+                      claim crowd rewards.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-sm font-semibold text-white">
+                      Crowd window closed
+                    </p>
+                    <p className="text-xs text-white/60">
+                      Awaiting resolution by arbiter at {formatDate(bet.resolveTs)}.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {isArbiter &&
+              !isResolved &&
+              !isCancelled &&
+              now >= safeToNumber(bet.resolveTs) && (
+              <div className="rounded-3xl border border-purple-400/30 bg-purple-500/10 p-6 shadow-[0_12px_45px_rgba(124,58,237,0.3)]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-white/60">
+                      Judge desk
+                    </p>
+                    <h4 className="text-xl font-semibold text-white">
+                      Declare winner
+                    </h4>
+                  </div>
+                  <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-white/70">
+                    Resolve window open
+                  </span>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => handleDeclareWinner("A")}
+                    disabled={actionLoading}
+                    className="rounded-xl border border-emerald-300/50 bg-emerald-500/20 px-4 py-3 text-sm font-semibold text-emerald-100 shadow-[0_10px_30px_rgba(34,242,170,0.18)] transition hover:scale-[1.01] disabled:opacity-60"
+                  >
+                    {actionLoading ? "Processing..." : "Side A wins"}
+                  </button>
+                  <button
+                    onClick={() => handleDeclareWinner("B")}
+                    disabled={actionLoading}
+                    className="rounded-xl border border-purple-300/50 bg-purple-500/25 px-4 py-3 text-sm font-semibold text-purple-50 shadow-[0_10px_30px_rgba(124,58,237,0.2)] transition hover:scale-[1.01] disabled:opacity-60"
+                  >
+                    {actionLoading ? "Processing..." : "Side B wins"}
+                  </button>
+                </div>
+              </div>
             )}
+
+            {isResolved && bet.winnerSide && (
+              <div className="rounded-3xl border border-emerald-400/30 bg-emerald-500/10 p-6 shadow-[0_12px_45px_rgba(34,242,170,0.25)] space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-100/80">
+                      Payouts live
+                    </p>
+                    <h4 className="text-xl font-semibold text-emerald-50">
+                      Winner: Side {bet.winnerSide.a ? "A" : "B"}
+                    </h4>
+                  </div>
+                  <div className="rounded-full border border-emerald-400/50 bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-50">
+                    Claim rewards
+                  </div>
+                </div>
+
+                {((isUserA && bet.winnerSide.a) ||
+                  (isUserB && bet.winnerSide.b)) && (
+                  <button
+                    onClick={handleWithdrawPrincipal}
+                    disabled={actionLoading}
+                    className="w-full rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-300 px-4 py-3 text-slate-950 font-semibold shadow-[0_12px_40px_rgba(34,242,170,0.25)] transition hover:scale-[1.01] disabled:opacity-60"
+                  >
+                    {actionLoading
+                      ? "Processing..."
+                      : "Withdraw principal (2x stake)"}
+                  </button>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => handleClaimSupport("A")}
+                    disabled={actionLoading}
+                    className="rounded-xl border border-emerald-300/40 bg-emerald-500/15 px-4 py-3 text-sm font-semibold text-emerald-100 transition hover:scale-[1.01] disabled:opacity-60"
+                  >
+                    {actionLoading ? "Processing..." : "Claim Side A"}
+                  </button>
+                  <button
+                    onClick={() => handleClaimSupport("B")}
+                    disabled={actionLoading}
+                    className="rounded-xl border border-purple-300/40 bg-purple-500/20 px-4 py-3 text-sm font-semibold text-purple-50 transition hover:scale-[1.01] disabled:opacity-60"
+                  >
+                    {actionLoading ? "Processing..." : "Claim Side B"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-sm text-white/70">
+              <div className="flex items-center justify-between">
+                <p className="font-semibold text-white">Explore more markets</p>
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_12px_rgba(34,242,170,0.8)]" />
+              </div>
+              <p className="mt-1 text-white/60">
+                Jump back to the arena feed to enter other prediction markets.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-3">
+                <a
+                  href="/app"
+                  className="inline-flex items-center gap-2 rounded-xl border border-emerald-300/40 bg-emerald-500/15 px-4 py-2 text-sm font-semibold text-emerald-100 hover:scale-[1.01] transition"
+                >
+                  Browse live bets
+                </a>
+                <a
+                  href="/create"
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 hover:scale-[1.01] transition"
+                >
+                  Host a duel
+                </a>
+              </div>
+            </div>
           </div>
-        </div>
-
-        <div className="bg-gray-50 rounded-lg p-6 mb-8">
-          <h3 className="font-semibold mb-4">Bet Details</h3>
-          <dl className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <dt className="text-gray-600">Stake per side</dt>
-              <dd className="font-semibold">{lamportsToSol(bet.stakeLamports).toFixed(2)} SOL</dd>
-            </div>
-            <div>
-              <dt className="text-gray-600">Crowd fee</dt>
-              <dd className="font-semibold">{(bet.spreadBps / 100).toFixed(1)}%</dd>
-            </div>
-            <div>
-              <dt className="text-gray-600">Crowd deadline</dt>
-              <dd className="font-semibold">
-                {new Date(safeToNumber(bet.deadlineCrowd) * 1000).toLocaleString()}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-gray-600">Resolve time</dt>
-              <dd className="font-semibold">
-                {new Date(safeToNumber(bet.resolveTs) * 1000).toLocaleString()}
-              </dd>
-            </div>
-          </dl>
-        </div>
-
-        {/* Actions */}
-        <div className="space-y-4">
-          {/* Deposit */}
-          {(isUserA || isUserB) && !isResolved && (
-            <div>
-              {((isUserA && !bet.userADeposited) || (isUserB && !bet.userBDeposited)) && (
-                <button
-                  onClick={handleDeposit}
-                  disabled={actionLoading}
-                  className="w-full bg-primary-600 text-white py-3 rounded-lg hover:bg-primary-700 disabled:opacity-50"
-                >
-                  {actionLoading ? "Processing..." : `Deposit ${lamportsToSol(bet.stakeLamports).toFixed(2)} SOL`}
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Support bet */}
-          {!isResolved && bet.userADeposited && bet.userBDeposited && now < safeToNumber(bet.deadlineCrowd) && (
-            <div className="border-t pt-4">
-              <h3 className="font-semibold mb-3">Place a bet</h3>
-              <div className="flex gap-2 mb-3">
-                <button
-                  onClick={() => setSelectedSide("A")}
-                  className={`flex-1 py-2 rounded ${
-                    selectedSide === "A"
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-200 text-gray-700"
-                  }`}
-                >
-                  Side A
-                </button>
-                <button
-                  onClick={() => setSelectedSide("B")}
-                  className={`flex-1 py-2 rounded ${
-                    selectedSide === "B"
-                      ? "bg-red-600 text-white"
-                      : "bg-gray-200 text-gray-700"
-                  }`}
-                >
-                  Side B
-                </button>
-              </div>
-              <input
-                type="number"
-                value={supportAmount}
-                onChange={(e) => setSupportAmount(e.target.value)}
-                placeholder="Amount (SOL)"
-                className="w-full px-4 py-2 border rounded mb-3"
-                step="0.1"
-                min="0.1"
-              />
-              <button
-                onClick={() => handleSupport(selectedSide)}
-                disabled={actionLoading}
-                className="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 disabled:opacity-50"
-              >
-                {actionLoading ? "Processing..." : `Bet ${supportAmount} SOL on Side ${selectedSide}`}
-              </button>
-            </div>
-          )}
-
-          {/* Arbiter declare winner */}
-          {isArbiter && !isResolved && now >= safeToNumber(bet.resolveTs) && (
-            <div className="border-t pt-4">
-              <h3 className="font-semibold mb-3">Declare Winner</h3>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleDeclareWinner("A")}
-                  disabled={actionLoading}
-                  className="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                >
-                  Side A Wins
-                </button>
-                <button
-                  onClick={() => handleDeclareWinner("B")}
-                  disabled={actionLoading}
-                  className="flex-1 bg-red-600 text-white py-3 rounded-lg hover:bg-red-700 disabled:opacity-50"
-                >
-                  Side B Wins
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Winner status */}
-          {isResolved && bet.winnerSide && (
-            <div className="border-t pt-4">
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-                <p className="text-green-800 font-semibold text-center">
-                  Winner: Side {bet.winnerSide.a ? "A" : "B"}
-                </p>
-              </div>
-
-              {/* Withdraw principal */}
-              {((isUserA && bet.winnerSide.a) || (isUserB && bet.winnerSide.b)) && (
-                <button
-                  onClick={handleWithdrawPrincipal}
-                  disabled={actionLoading}
-                  className="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 mb-2"
-                >
-                  {actionLoading ? "Processing..." : "Withdraw Principal (2x stake)"}
-                </button>
-              )}
-
-              {/* Claim support */}
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleClaimSupport("A")}
-                  disabled={actionLoading}
-                  className="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-                >
-                  Claim Side A
-                </button>
-                <button
-                  onClick={() => handleClaimSupport("B")}
-                  disabled={actionLoading}
-                  className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700 disabled:opacity-50"
-                >
-                  Claim Side B
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
