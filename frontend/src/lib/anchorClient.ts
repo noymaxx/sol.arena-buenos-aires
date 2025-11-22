@@ -141,8 +141,31 @@ if (rawIdl.events) {
       : s;
 
   // Instruções: injeta discriminators se faltarem (sha256("global:<snake_name>")[:8])
+  // e normaliza flags (isMut/isSigner -> writable/signer) para compat com anchor >=0.30
   if (rawIdl.instructions) {
+    const normalizeAccountFlags = (acc: any) => {
+      if (acc && typeof acc === "object") {
+        if (acc.writable === undefined && acc.isMut !== undefined) {
+          acc.writable = acc.isMut;
+        }
+        if (acc.signer === undefined && acc.isSigner !== undefined) {
+          acc.signer = acc.isSigner;
+        }
+      }
+    };
+
     for (const ix of rawIdl.instructions) {
+      if (Array.isArray(ix.accounts)) {
+        for (const acc of ix.accounts) {
+          normalizeAccountFlags(acc);
+          if (Array.isArray((acc as any).accounts)) {
+            for (const nested of (acc as any).accounts) {
+              normalizeAccountFlags(nested);
+            }
+          }
+        }
+      }
+
       if (!ix.discriminator || !Array.isArray(ix.discriminator)) {
         const seed = `global:${toSnake(ix.name)}`;
         if (typeof crypto !== "undefined" && (crypto as any).subtle) {
