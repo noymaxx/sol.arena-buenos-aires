@@ -64,8 +64,7 @@ export default function BetDetail() {
       setActionLoading(true);
       const program = await getProgram(connection, wallet as any);
 
-      // @ts-ignore - Anchor types issue
-      await (program as any).methods
+      const tx = await (program as any).methods
         .depositParticipant()
         .accounts({
           participant: wallet.publicKey,
@@ -74,7 +73,19 @@ export default function BetDetail() {
         })
         .rpc();
 
-      toast.success("Deposit successful!");
+      toast.success(
+        <span>
+          Deposit successful.{" "}
+          <a
+            href={`https://solscan.io/tx/${tx}?cluster=devnet`}
+            target="_blank"
+            rel="noreferrer"
+            className="underline font-semibold"
+          >
+            View tx
+          </a>
+        </span>
+      );
       await loadBet();
     } catch (error: any) {
       console.error("Error depositing:", error);
@@ -110,7 +121,7 @@ export default function BetDetail() {
 
       const sideEnum = side === "A" ? { a: {} } : { b: {} };
 
-      await (program as any).methods
+      const tx = await (program as any).methods
         .supportBet(sideEnum, amount)
         .accounts({
           bettor: wallet.publicKey,
@@ -120,7 +131,19 @@ export default function BetDetail() {
         })
         .rpc();
 
-      toast.success(`Bet on Side ${side} successful!`);
+      toast.success(
+        <span>
+          Entered Side {side}.{" "}
+          <a
+            href={`https://solscan.io/tx/${tx}?cluster=devnet`}
+            target="_blank"
+            rel="noreferrer"
+            className="underline font-semibold"
+          >
+            View tx
+          </a>
+        </span>
+      );
       await loadBet();
     } catch (error: any) {
       console.error("Error supporting:", error);
@@ -146,7 +169,7 @@ export default function BetDetail() {
       const program = await getProgram(connection, wallet as any);
       const sideEnum = side === "A" ? { a: {} } : { b: {} };
 
-      await (program as any).methods
+      const tx = await (program as any).methods
         .declareWinner(sideEnum)
         .accounts({
           arbiter: wallet.publicKey,
@@ -154,7 +177,19 @@ export default function BetDetail() {
         })
         .rpc();
 
-      toast.success(`Winner declared: Side ${side}!`);
+      toast.success(
+        <span>
+          Winner: Side {side}.{" "}
+          <a
+            href={`https://solscan.io/tx/${tx}?cluster=devnet`}
+            target="_blank"
+            rel="noreferrer"
+            className="underline font-semibold"
+          >
+            View tx
+          </a>
+        </span>
+      );
       await loadBet();
     } catch (error: any) {
       console.error("Error declaring winner:", error);
@@ -174,7 +209,7 @@ export default function BetDetail() {
       setActionLoading(true);
       const program = await getProgram(connection, wallet as any);
 
-      await (program as any).methods
+      const tx = await (program as any).methods
         .withdrawPrincipal()
         .accounts({
           winner: wallet.publicKey,
@@ -182,7 +217,19 @@ export default function BetDetail() {
         })
         .rpc();
 
-      toast.success("Principal withdrawn!");
+      toast.success(
+        <span>
+          Principal withdrawn.{" "}
+          <a
+            href={`https://solscan.io/tx/${tx}?cluster=devnet`}
+            target="_blank"
+            rel="noreferrer"
+            className="underline font-semibold"
+          >
+            View tx
+          </a>
+        </span>
+      );
       await loadBet();
     } catch (error: any) {
       console.error("Error withdrawing:", error);
@@ -208,7 +255,7 @@ export default function BetDetail() {
         side
       );
 
-      await (program as any).methods
+      const tx = await (program as any).methods
         .claimSupport()
         .accounts({
           bettor: wallet.publicKey,
@@ -217,7 +264,19 @@ export default function BetDetail() {
         })
         .rpc();
 
-      toast.success("Reward claimed!");
+      toast.success(
+        <span>
+          Reward claimed.{" "}
+          <a
+            href={`https://solscan.io/tx/${tx}?cluster=devnet`}
+            target="_blank"
+            rel="noreferrer"
+            className="underline font-semibold"
+          >
+            View tx
+          </a>
+        </span>
+      );
       await loadBet();
     } catch (error: any) {
       console.error("Error claiming:", error);
@@ -253,6 +312,8 @@ export default function BetDetail() {
   const supportA = lamportsToSol(bet.netSupportA || 0);
   const supportB = lamportsToSol(bet.netSupportB || 0);
   const totalSupport = supportA + supportB;
+  const oddA = supportA > 0 ? (totalSupport / supportA).toFixed(2) : "—";
+  const oddB = supportB > 0 ? (totalSupport / supportB).toFixed(2) : "—";
   const stakeSOL = lamportsToSol(bet.stakeLamports || 0);
   const percentA = totalSupport
     ? Math.round((supportA / totalSupport) * 100)
@@ -263,6 +324,9 @@ export default function BetDetail() {
     !isResolved &&
     !isCancelled &&
     now < safeToNumber(bet.deadlineDuel);
+  const depositClosed =
+    (!bet.userADeposited || !bet.userBDeposited) &&
+    now >= safeToNumber(bet.deadlineDuel);
   const marketOpen =
     bet.userADeposited &&
     bet.userBDeposited &&
@@ -316,10 +380,14 @@ export default function BetDetail() {
       };
     if (!bet.userADeposited || !bet.userBDeposited)
       return {
-        label: "Awaiting deposits",
-        badge: "border-amber-300/40 bg-amber-500/10 text-amber-100",
-        dot: "bg-amber-300",
-        desc: "Players need to post stakes",
+        label: depositClosed ? "Deposits closed" : "Awaiting deposits",
+        badge: depositClosed
+          ? "border-red-400/40 bg-red-500/10 text-red-100"
+          : "border-amber-300/40 bg-amber-500/10 text-amber-100",
+        dot: depositClosed ? "bg-red-400" : "bg-amber-300",
+        desc: depositClosed
+          ? "Deposit window ended before both players posted stake"
+          : "Players need to post stakes",
       };
     if (marketOpen)
       return {
@@ -419,10 +487,10 @@ export default function BetDetail() {
                       {bet.userA.toString().slice(0, 20)}...
                     </p>
                     <p className="text-2xl font-semibold text-emerald-100">
-                      {supportA.toFixed(2)} ◎
+                      {oddA}x
                     </p>
                     <p className="text-xs text-emerald-100/80">
-                      Crowd backing · {percentA}% share
+                      Crowd backing · {percentA}% share · pool {supportA.toFixed(2)} ◎
                     </p>
                   </div>
                 </div>
@@ -442,10 +510,10 @@ export default function BetDetail() {
                       {bet.userB.toString().slice(0, 20)}...
                     </p>
                     <p className="text-2xl font-semibold text-purple-100">
-                      {supportB.toFixed(2)} ◎
+                      {oddB}x
                     </p>
                     <p className="text-xs text-purple-100/80">
-                      Crowd backing · {percentB}% share
+                      Crowd backing · {percentB}% share · pool {supportB.toFixed(2)} ◎
                     </p>
                   </div>
                 </div>

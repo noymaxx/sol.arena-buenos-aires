@@ -105,7 +105,7 @@ export default function MyBets() {
         pos.side
       );
 
-      await (program as any).methods
+      const tx = await (program as any).methods
         .claimSupport()
         .accounts({
           bettor: wallet.publicKey,
@@ -114,7 +114,19 @@ export default function MyBets() {
         })
         .rpc();
 
-      toast.success("Support claimed");
+      toast.success(
+        <span>
+          Support claimed.{" "}
+          <a
+            href={`https://solscan.io/tx/${tx}?cluster=devnet`}
+            target="_blank"
+            rel="noreferrer"
+            className="underline font-semibold"
+          >
+            View tx
+          </a>
+        </span>
+      );
       await loadMyBets();
     } catch (error: any) {
       console.error("Claim error:", error);

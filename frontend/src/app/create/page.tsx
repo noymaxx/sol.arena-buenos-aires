@@ -201,8 +201,20 @@ export default function CreateBet() {
         })
         .rpc();
 
-      toast.success("Duel created successfully!");
-      console.log("Transaction:", tx);
+      toast.success(
+        <span>
+          Duel created.{" "}
+          <a
+            href={`https://solscan.io/tx/${tx}?cluster=devnet`}
+            target="_blank"
+            rel="noreferrer"
+            className="underline font-semibold"
+          >
+            View on Solscan
+          </a>
+        </span>
+      );
+      console.log("Transaction:", tx, "https://solscan.io/tx/" + tx + "?cluster=devnet");
 
       // Redirect to bet page
       setTimeout(() => {

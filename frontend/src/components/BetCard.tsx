@@ -17,6 +17,8 @@ export function BetCard({ betPubkey, bet }: BetCardProps) {
   const supportA = bet?.netSupportA ? lamportsToSol(bet.netSupportA) : 0;
   const supportB = bet?.netSupportB ? lamportsToSol(bet.netSupportB) : 0;
   const totalCrowdPool = supportA + supportB;
+  const oddA = supportA > 0 ? (totalCrowdPool / supportA).toFixed(2) : "—";
+  const oddB = supportB > 0 ? (totalCrowdPool / supportB).toFixed(2) : "—";
   const stakeSOL = lamportsToSol(bet?.stakeLamports);
   const total = supportA + supportB || 1;
   const percentA = ((supportA / total) * 100).toFixed(1);
@@ -35,13 +37,18 @@ export function BetCard({ betPubkey, bet }: BetCardProps) {
     if ("cancelled" in statusField) return "Cancelled";
 
     const now = Date.now() / 1000;
-    if (bet?.deadlineDuel && now < safeToNumber(bet.deadlineDuel)) {
+    const hasDeposits = bet?.userADeposited && bet?.userBDeposited;
+    const deadlineDuel = safeToNumber(bet?.deadlineDuel);
+    const deadlineCrowd = safeToNumber(bet?.deadlineCrowd);
+    const resolveTs = safeToNumber(bet?.resolveTs);
+
+    if (!hasDeposits) {
+      if (deadlineDuel && now >= deadlineDuel) return "Deposits closed";
       return "Awaiting deposits";
-    } else if (bet?.deadlineCrowd && now < safeToNumber(bet.deadlineCrowd)) {
-      return "Crowd open";
-    } else if (bet?.resolveTs && now < safeToNumber(bet.resolveTs)) {
-      return "Awaiting arbiter";
     }
+
+    if (deadlineCrowd && now < deadlineCrowd) return "Crowd open";
+    if (resolveTs && now < resolveTs) return "Awaiting arbiter";
     return "Open";
   };
 
@@ -53,6 +60,12 @@ export function BetCard({ betPubkey, bet }: BetCardProps) {
         dot: "bg-emerald-400",
         badge:
           "border border-emerald-400/40 bg-emerald-500/10 text-emerald-100",
+      };
+    if (status === "Deposits closed")
+      return {
+        label: "Deposits closed",
+        dot: "bg-red-400",
+        badge: "border border-red-400/40 bg-red-500/10 text-red-100",
       };
     if (status === "Cancelled")
       return {
@@ -156,10 +169,10 @@ export function BetCard({ betPubkey, bet }: BetCardProps) {
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/5 px-3 py-2 flex items-center gap-2 text-emerald-100">
             <span className="h-2 w-2 rounded-full bg-emerald-300" />
-            {percentA}% · {supportA.toFixed(2)} ◎
+            {percentA}% · {oddA}x
           </div>
           <div className="rounded-xl border border-purple-400/25 bg-purple-500/10 px-3 py-2 flex items-center justify-end gap-2 text-purple-100">
-            {supportB.toFixed(2)} ◎ · {percentB}%
+            {oddB}x · {percentB}%
             <span className="h-2 w-2 rounded-full bg-purple-300" />
           </div>
         </div>

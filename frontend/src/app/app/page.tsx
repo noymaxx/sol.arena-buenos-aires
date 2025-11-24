@@ -5,11 +5,14 @@ import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { BetCard } from "@/components/BetCard";
 import { getProgram, lamportsToSol, safeToNumber } from "@/lib/anchorClient";
 
+type BetStatusFilter = "all" | "crowd" | "deposits" | "arbiter" | "resolved";
+
 export default function AppPage() {
   const { connection } = useConnection();
   const wallet = useWallet();
   const [bets, setBets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<BetStatusFilter>("all");
 
   useEffect(() => {
     loadBets();
@@ -99,6 +102,35 @@ export default function AppPage() {
       tone: "from-emerald-300/80 to-white/70",
     },
   ];
+
+  const getStatus = (bet: any) => {
+    const statusField = bet?.status;
+    if (!statusField) return "open";
+    if ("resolved" in statusField) return "resolved";
+    if ("cancelled" in statusField) return "cancelled";
+
+    const now = Date.now() / 1000;
+    if (bet?.deadlineDuel && now < safeToNumber(bet.deadlineDuel)) {
+      return "deposits";
+    } else if (bet?.deadlineCrowd && now < safeToNumber(bet.deadlineCrowd)) {
+      return "crowd";
+    } else if (bet?.resolveTs && now < safeToNumber(bet.resolveTs)) {
+      return "arbiter";
+    }
+    return "open";
+  };
+
+  const filteredBets = useMemo(() => {
+    if (filter === "all") return bets;
+    return bets.filter((b) => {
+      const s = getStatus(b?.account);
+      if (filter === "crowd") return s === "crowd";
+      if (filter === "deposits") return s === "deposits";
+      if (filter === "arbiter") return s === "arbiter";
+      if (filter === "resolved") return s === "resolved";
+      return true;
+    });
+  }, [bets, filter]);
 
   const renderSkeleton = () => (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -216,11 +248,33 @@ export default function AppPage() {
                   Host a duel
                 </a>
               </div>
+              <div className="flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.18em]">
+                {[
+                  { key: "all", label: "All", tip: "Show every duel" },
+                  { key: "crowd", label: "Crowd open", tip: "Players deposited; crowd window open" },
+                  { key: "deposits", label: "Awaiting deposits", tip: "Players must still deposit" },
+                  { key: "arbiter", label: "Awaiting judge", tip: "Crowd closed; waiting resolution" },
+                  { key: "resolved", label: "Settled", tip: "Winner declared" },
+                ].map((f) => (
+                  <button
+                    key={f.key}
+                    title={f.tip}
+                    onClick={() => setFilter(f.key as BetStatusFilter)}
+                    className={`rounded-full border px-3 py-2 transition ${
+                      filter === f.key
+                        ? "border-emerald-400/60 bg-emerald-500/15 text-emerald-100"
+                        : "border-white/10 bg-white/5 text-white/60 hover:border-emerald-300/30 hover:text-white"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {loading ? (
               renderSkeleton()
-            ) : bets.length === 0 ? (
+            ) : filteredBets.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
                 <div className="relative">
                   <div className="h-20 w-20 rounded-full bg-white/5 border border-white/10" />
@@ -243,7 +297,7 @@ export default function AppPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {bets.map((bet) => (
+                {filteredBets.map((bet) => (
                   <BetCard
                     key={bet.publicKey.toString()}
                     betPubkey={bet.publicKey}
