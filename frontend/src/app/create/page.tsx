@@ -10,6 +10,7 @@ import toast from "react-hot-toast";
 import { useWalletConnection } from "@/lib/useWalletConnection";
 import { debugPage } from "@/lib/debug";
 import { motion } from "framer-motion";
+import { saveBetMetadata } from "@/lib/betLocalMeta";
 
 export default function CreateBet() {
   const router = useRouter();
@@ -18,6 +19,9 @@ export default function CreateBet() {
   const { statusLabel, status, ensureConnected } = useWalletConnection();
 
   const [formData, setFormData] = useState({
+    headline: "",
+    sideAName: "",
+    sideBName: "",
     opponentAddress: "",
     arbiterAddress: "",
     useOwnWalletAsArbiter: true,
@@ -134,6 +138,15 @@ export default function CreateBet() {
       const arbiterShareBps = 2000; // 20%
       const protocolShareBps = 3000; // 30%
 
+      // Optional video/demo metadata (local only)
+      const subject =
+        formData.headline.trim() ||
+        `${formData.sideAName.trim() || "Side A"} x ${
+          formData.sideBName.trim() || "Side B"
+        }`;
+      const sideAName = formData.sideAName.trim() || "Side A";
+      const sideBName = formData.sideBName.trim() || "Side B";
+
       // Get PDAs
       const [betPda] = getBetPDA(arbiterPubkey, userA, userB);
 
@@ -215,6 +228,17 @@ export default function CreateBet() {
         </span>
       );
       console.log("Transaction:", tx, "https://solscan.io/tx/" + tx + "?cluster=devnet");
+
+      // Save local-only metadata for UI (not on-chain)
+      try {
+        saveBetMetadata(betPda.toBase58(), {
+          subject,
+          sideAName,
+          sideBName,
+        });
+      } catch (metaErr) {
+        console.warn("Could not persist local metadata", metaErr);
+      }
 
       // Redirect to bet page
       setTimeout(() => {
@@ -422,6 +446,50 @@ export default function CreateBet() {
               </div>
               <div className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-3 py-1 text-xs font-semibold">
                 Live preview
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-3 gap-3">
+              <div className="space-y-2 sm:col-span-2">
+                <label className={labelClasses}>Subject / headline</label>
+                <input
+                  type="text"
+                  maxLength={64}
+                  value={formData.headline}
+                  onChange={(e) =>
+                    setFormData({ ...formData, headline: e.target.value })
+                  }
+                  placeholder="Optional: e.g. Aurora vs Nebula – best of three"
+                  className={inputClasses}
+                />
+                <p className="text-[11px] text-white/50">
+                  Frontend-only. Saved locally for the video; not stored on-chain.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <label className={labelClasses}>Side labels</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    maxLength={24}
+                    value={formData.sideAName}
+                    onChange={(e) =>
+                      setFormData({ ...formData, sideAName: e.target.value })
+                    }
+                    placeholder="Side A"
+                    className={inputClasses}
+                  />
+                  <input
+                    type="text"
+                    maxLength={24}
+                    value={formData.sideBName}
+                    onChange={(e) =>
+                      setFormData({ ...formData, sideBName: e.target.value })
+                    }
+                    placeholder="Side B"
+                    className={inputClasses}
+                  />
+                </div>
               </div>
             </div>
 

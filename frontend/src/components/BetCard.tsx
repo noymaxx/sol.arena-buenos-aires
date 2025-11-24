@@ -5,7 +5,8 @@ import Link from "next/link";
 import { PublicKey } from "@solana/web3.js";
 import { lamportsToSol, safeToNumber } from "@/lib/anchorClient";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useMemo } from "react";
+import { useMemo, useEffect, useState } from "react";
+import { BetMetadata, getBetMetadata } from "@/lib/betLocalMeta";
 
 interface BetCardProps {
   betPubkey: PublicKey;
@@ -14,11 +15,23 @@ interface BetCardProps {
 
 export function BetCard({ betPubkey, bet }: BetCardProps) {
   const wallet = useWallet();
+  const [uiMeta, setUiMeta] = useState<BetMetadata | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setUiMeta(getBetMetadata(betPubkey.toBase58()));
+  }, [betPubkey]);
+
   const supportA = bet?.netSupportA ? lamportsToSol(bet.netSupportA) : 0;
   const supportB = bet?.netSupportB ? lamportsToSol(bet.netSupportB) : 0;
   const totalCrowdPool = supportA + supportB;
-  const oddA = supportA > 0 ? (totalCrowdPool / supportA).toFixed(2) : "—";
-  const oddB = supportB > 0 ? (totalCrowdPool / supportB).toFixed(2) : "—";
+  const formatOdd = (sideSupport: number) => {
+    if (sideSupport <= 0 || totalCrowdPool <= 0) return "—";
+    const odd = Math.max(1, totalCrowdPool / sideSupport);
+    return odd.toFixed(2);
+  };
+  const oddA = formatOdd(supportA);
+  const oddB = formatOdd(supportB);
   const stakeSOL = lamportsToSol(bet?.stakeLamports);
   const total = supportA + supportB || 1;
   const percentA = ((supportA / total) * 100).toFixed(1);
@@ -112,7 +125,7 @@ export function BetCard({ betPubkey, bet }: BetCardProps) {
     )}m`;
   };
 
-  const meta = statusMeta();
+  const statusInfo = statusMeta();
   const duelNumber = betPubkey.toString().slice(0, 6);
   const minEntry = Math.max(0.01, Number((stakeSOL || 0) / 10)).toFixed(2);
   const roleBadge = useMemo(() => {
@@ -133,12 +146,12 @@ export function BetCard({ betPubkey, bet }: BetCardProps) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span
-              className={`h-2.5 w-2.5 rounded-full shadow-[0_0_12px_rgba(34,242,170,0.5)] ${meta.dot}`}
+              className={`h-2.5 w-2.5 rounded-full shadow-[0_0_12px_rgba(34,242,170,0.5)] ${statusInfo.dot}`}
             />
             <span
-              className={`text-[11px] font-semibold uppercase tracking-[0.24em] ${meta.badge}`}
+              className={`text-[11px] font-semibold uppercase tracking-[0.24em] ${statusInfo.badge}`}
             >
-              {meta.label}
+              {statusInfo.label}
             </span>
           </div>
           <span className="text-xs text-white/50 font-mono">
@@ -146,11 +159,17 @@ export function BetCard({ betPubkey, bet }: BetCardProps) {
           </span>
         </div>
 
+        {uiMeta?.subject && (
+          <p className="text-sm text-white/80 line-clamp-1">
+            {uiMeta.subject}
+          </p>
+        )}
+
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-xs text-white/50">Challenger A</p>
             <p className="text-lg font-semibold text-white">
-              {shorten(bet?.userA)}
+              {uiMeta?.sideAName || shorten(bet?.userA)}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -161,7 +180,7 @@ export function BetCard({ betPubkey, bet }: BetCardProps) {
           <div className="text-right">
             <p className="text-xs text-white/50">Challenger B</p>
             <p className="text-lg font-semibold text-purple-100">
-              {shorten(bet?.userB)}
+              {uiMeta?.sideBName || shorten(bet?.userB)}
             </p>
           </div>
         </div>

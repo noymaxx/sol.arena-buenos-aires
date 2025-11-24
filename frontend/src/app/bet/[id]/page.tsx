@@ -11,6 +11,7 @@ import {
   getSupportPositionPDA,
   safeToNumber,
 } from "@/lib/anchorClient";
+import { BetMetadata, getBetMetadata } from "@/lib/betLocalMeta";
 import toast from "react-hot-toast";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 
@@ -21,6 +22,7 @@ export default function BetDetail() {
   const { connection } = useConnection();
   const wallet = useWallet();
   const [bet, setBet] = useState<any>(null);
+  const [uiMeta, setUiMeta] = useState<BetMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [supportAmount, setSupportAmount] = useState("0.5");
@@ -31,6 +33,11 @@ export default function BetDetail() {
   useEffect(() => {
     loadBet();
   }, [params?.id, connection]);
+
+  useEffect(() => {
+    if (!betPubkey) return;
+    setUiMeta(getBetMetadata(betPubkey.toBase58()));
+  }, [betPubkey]);
 
   useEffect(() => {
     const sideParam = searchParams?.get("side");
@@ -308,12 +315,23 @@ export default function BetDetail() {
   const isUserB = wallet.publicKey?.equals(bet.userB);
   const isArbiter = wallet.publicKey?.equals(bet.arbiter);
   const now = Date.now() / 1000;
+  const subjectLine =
+    uiMeta?.subject || `Duel #${betPubkey.toString().slice(0, 8)}`;
+  const sideALabel =
+    uiMeta?.sideAName || `${bet.userA.toString().slice(0, 12)}...`;
+  const sideBLabel =
+    uiMeta?.sideBName || `${bet.userB.toString().slice(0, 12)}...`;
 
   const supportA = lamportsToSol(bet.netSupportA || 0);
   const supportB = lamportsToSol(bet.netSupportB || 0);
   const totalSupport = supportA + supportB;
-  const oddA = supportA > 0 ? (totalSupport / supportA).toFixed(2) : "—";
-  const oddB = supportB > 0 ? (totalSupport / supportB).toFixed(2) : "—";
+  const formatOdd = (sideSupport: number) => {
+    if (sideSupport <= 0 || totalSupport <= 0) return "—";
+    const odd = Math.max(1, totalSupport / sideSupport);
+    return odd.toFixed(2);
+  };
+  const oddA = formatOdd(supportA);
+  const oddB = formatOdd(supportB);
   const stakeSOL = lamportsToSol(bet.stakeLamports || 0);
   const percentA = totalSupport
     ? Math.round((supportA / totalSupport) * 100)
@@ -450,11 +468,10 @@ export default function BetDetail() {
                     Duel overview
                   </p>
                   <h1 className="font-display text-3xl sm:text-4xl font-bold leading-tight">
-                    Duel #{betPubkey.toString().slice(0, 8)}
+                    {subjectLine}
                   </h1>
                   <p className="text-white/70">
-                    {bet.userA.toString().slice(0, 12)}... vs{" "}
-                    {bet.userB.toString().slice(0, 12)}...
+                    {sideALabel} vs {sideBLabel}
                   </p>
                 </div>
 
@@ -484,6 +501,9 @@ export default function BetDetail() {
                       )}
                     </div>
                     <p className="text-sm text-emerald-50">
+                      {sideALabel}
+                    </p>
+                    <p className="text-[11px] text-emerald-50/70">
                       {bet.userA.toString().slice(0, 20)}...
                     </p>
                     <p className="text-2xl font-semibold text-emerald-100">
@@ -507,6 +527,9 @@ export default function BetDetail() {
                       )}
                     </div>
                     <p className="text-sm text-purple-100">
+                      {sideBLabel}
+                    </p>
+                    <p className="text-[11px] text-purple-50/70">
                       {bet.userB.toString().slice(0, 20)}...
                     </p>
                     <p className="text-2xl font-semibold text-purple-100">
