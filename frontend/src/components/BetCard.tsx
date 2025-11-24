@@ -4,6 +4,8 @@ import React from "react";
 import Link from "next/link";
 import { PublicKey } from "@solana/web3.js";
 import { lamportsToSol, safeToNumber } from "@/lib/anchorClient";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { useMemo } from "react";
 
 interface BetCardProps {
   betPubkey: PublicKey;
@@ -11,6 +13,7 @@ interface BetCardProps {
 }
 
 export function BetCard({ betPubkey, bet }: BetCardProps) {
+  const wallet = useWallet();
   const supportA = bet?.netSupportA ? lamportsToSol(bet.netSupportA) : 0;
   const supportB = bet?.netSupportB ? lamportsToSol(bet.netSupportB) : 0;
   const totalCrowdPool = supportA + supportB;
@@ -99,6 +102,13 @@ export function BetCard({ betPubkey, bet }: BetCardProps) {
   const meta = statusMeta();
   const duelNumber = betPubkey.toString().slice(0, 6);
   const minEntry = Math.max(0.01, Number((stakeSOL || 0) / 10)).toFixed(2);
+  const roleBadge = useMemo(() => {
+    if (!wallet.publicKey) return null;
+    if (wallet.publicKey.equals(bet?.userA)) return { label: "You play (A)", tone: "from-emerald-400 to-emerald-200" };
+    if (wallet.publicKey.equals(bet?.userB)) return { label: "You play (B)", tone: "from-purple-400 to-indigo-300" };
+    if (wallet.publicKey.equals(bet?.arbiter)) return { label: "You arbitrate", tone: "from-sky-400 to-cyan-300" };
+    return null;
+  }, [wallet.publicKey, bet]);
 
   return (
     <Link
@@ -171,6 +181,12 @@ export function BetCard({ betPubkey, bet }: BetCardProps) {
           </div>
         </div>
 
+        {roleBadge && (
+          <div className={`inline-flex items-center gap-2 rounded-full bg-gradient-to-r ${roleBadge.tone} px-3 py-1 text-xs font-semibold text-slate-900 shadow-[0_8px_24px_rgba(0,0,0,0.25)]`}>
+            ◎ {roleBadge.label}
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
             <p className="text-[11px] uppercase tracking-[0.14em] text-white/50">
@@ -191,12 +207,18 @@ export function BetCard({ betPubkey, bet }: BetCardProps) {
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-center text-sm font-semibold text-emerald-100 shadow-[0_10px_30px_rgba(34,242,170,0.2)] transition group-hover:shadow-[0_15px_40px_rgba(34,242,170,0.28)]">
+          <Link
+            href={`/bet/${betPubkey.toString()}?side=A#book`}
+            className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-center text-sm font-semibold text-emerald-100 shadow-[0_10px_30px_rgba(34,242,170,0.2)] transition group-hover:shadow-[0_15px_40px_rgba(34,242,170,0.28)]"
+          >
             Back {shorten(bet?.userA)}
-          </div>
-          <div className="rounded-xl border border-purple-400/40 bg-purple-500/15 px-4 py-3 text-center text-sm font-semibold text-purple-50 shadow-[0_10px_30px_rgba(124,58,237,0.2)] transition group-hover:shadow-[0_15px_40px_rgba(124,58,237,0.3)]">
+          </Link>
+          <Link
+            href={`/bet/${betPubkey.toString()}?side=B#book`}
+            className="rounded-xl border border-purple-400/40 bg-purple-500/15 px-4 py-3 text-center text-sm font-semibold text-purple-50 shadow-[0_10px_30px_rgba(124,58,237,0.2)] transition group-hover:shadow-[0_15px_40px_rgba(124,58,237,0.3)]"
+          >
             Back {shorten(bet?.userB)}
-          </div>
+          </Link>
         </div>
 
         <div className="flex items-center justify-between text-xs text-white/60">

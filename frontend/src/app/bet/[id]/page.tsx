@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
 import {
@@ -17,6 +17,7 @@ import { Breadcrumbs } from "@/components/Breadcrumbs";
 export default function BetDetail() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { connection } = useConnection();
   const wallet = useWallet();
   const [bet, setBet] = useState<any>(null);
@@ -30,6 +31,13 @@ export default function BetDetail() {
   useEffect(() => {
     loadBet();
   }, [params?.id, connection]);
+
+  useEffect(() => {
+    const sideParam = searchParams?.get("side");
+    if (sideParam === "A" || sideParam === "B") {
+      setSelectedSide(sideParam);
+    }
+  }, [searchParams]);
 
   const loadBet = async () => {
     try {
@@ -125,6 +133,11 @@ export default function BetDetail() {
   const handleDeclareWinner = async (side: "A" | "B") => {
     if (!wallet.connected || !wallet.publicKey) {
       toast.error("Please connect your wallet");
+      return;
+    }
+
+    if (!bet?.userADeposited || !bet?.userBDeposited) {
+      toast.error("Both players must deposit before declaring a winner.");
       return;
     }
 
@@ -246,6 +259,10 @@ export default function BetDetail() {
     : 50;
   const percentB = 100 - percentA;
 
+  const duelDepositOpen =
+    !isResolved &&
+    !isCancelled &&
+    now < safeToNumber(bet.deadlineDuel);
   const marketOpen =
     bet.userADeposited &&
     bet.userBDeposited &&
@@ -259,6 +276,13 @@ export default function BetDetail() {
     bet.userBDeposited &&
     now >= safeToNumber(bet.deadlineCrowd) &&
     now < safeToNumber(bet.resolveTs);
+  const resolveReady =
+    isArbiter &&
+    !isResolved &&
+    !isCancelled &&
+    bet.userADeposited &&
+    bet.userBDeposited &&
+    now >= safeToNumber(bet.resolveTs);
 
   const formatDate = (ts?: any) =>
     ts ? new Date(safeToNumber(ts) * 1000).toLocaleString() : "—";
@@ -494,7 +518,10 @@ export default function BetDetail() {
           </div>
 
           <div className="space-y-4">
-            <div className="relative overflow-hidden rounded-3xl border border-emerald-400/25 bg-slate-950/80 p-6 shadow-[0_15px_60px_rgba(0,0,0,0.45)]">
+            <div
+              id="book"
+              className="relative overflow-hidden rounded-3xl border border-emerald-400/25 bg-slate-950/80 p-6 shadow-[0_15px_60px_rgba(0,0,0,0.45)] scroll-mt-24"
+            >
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(34,242,170,0.12),transparent_32%),radial-gradient(circle_at_90%_10%,rgba(124,58,237,0.12),transparent_30%)] opacity-70" />
               <div className="relative space-y-4">
                 <div className="flex items-start justify-between gap-3">
@@ -536,11 +563,16 @@ export default function BetDetail() {
                       Both challengers must deposit {stakeSOL.toFixed(2)} ◎
                       each before the crowd market opens.
                     </p>
+                    {!duelDepositOpen && (
+                      <p className="mt-2 text-xs text-red-100/80">
+                        Deposit window closed.
+                      </p>
+                    )}
                     {(isUserA && !bet.userADeposited) ||
                     (isUserB && !bet.userBDeposited) ? (
                       <button
                         onClick={handleDeposit}
-                        disabled={actionLoading}
+                        disabled={actionLoading || !duelDepositOpen}
                         className="mt-3 w-full rounded-xl bg-gradient-to-r from-emerald-400 to-purple-500 px-4 py-3 text-sm font-semibold text-slate-950 shadow-[0_12px_40px_rgba(124,58,237,0.35)] transition hover:scale-[1.01] disabled:opacity-60"
                       >
                         {actionLoading
@@ -642,20 +674,25 @@ export default function BetDetail() {
                     </h4>
                   </div>
                   <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-white/70">
-                    Resolve window open
+                    {resolveReady ? "Resolve window open" : "Awaiting deposits"}
                   </span>
                 </div>
+                {!bet.userADeposited || !bet.userBDeposited ? (
+                  <div className="mt-3 rounded-xl border border-amber-300/40 bg-amber-500/15 px-4 py-3 text-xs text-amber-100">
+                    Both players must deposit before you can declare a winner.
+                  </div>
+                ) : null}
                 <div className="mt-4 grid grid-cols-2 gap-3">
                   <button
                     onClick={() => handleDeclareWinner("A")}
-                    disabled={actionLoading}
+                    disabled={actionLoading || !resolveReady}
                     className="rounded-xl border border-emerald-300/50 bg-emerald-500/20 px-4 py-3 text-sm font-semibold text-emerald-100 shadow-[0_10px_30px_rgba(34,242,170,0.18)] transition hover:scale-[1.01] disabled:opacity-60"
                   >
                     {actionLoading ? "Processing..." : "Side A wins"}
                   </button>
                   <button
                     onClick={() => handleDeclareWinner("B")}
-                    disabled={actionLoading}
+                    disabled={actionLoading || !resolveReady}
                     className="rounded-xl border border-purple-300/50 bg-purple-500/25 px-4 py-3 text-sm font-semibold text-purple-50 shadow-[0_10px_30px_rgba(124,58,237,0.2)] transition hover:scale-[1.01] disabled:opacity-60"
                   >
                     {actionLoading ? "Processing..." : "Side B wins"}
