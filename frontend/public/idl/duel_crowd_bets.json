@@ -1,0 +1,660 @@
+{
+  "version": "0.1.0",
+  "name": "duel_crowd_bets",
+  "instructions": [
+    {
+      "name": "createBet",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "bet",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "protocolTreasury",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "userA",
+          "type": "publicKey"
+        },
+        {
+          "name": "userB",
+          "type": "publicKey"
+        },
+        {
+          "name": "arbiter",
+          "type": "publicKey"
+        },
+        {
+          "name": "stakeLamports",
+          "type": "u64"
+        },
+        {
+          "name": "deadlineDuel",
+          "type": "i64"
+        },
+        {
+          "name": "deadlineCrowd",
+          "type": "i64"
+        },
+        {
+          "name": "resolveTs",
+          "type": "i64"
+        },
+        {
+          "name": "spreadBps",
+          "type": "u16"
+        },
+        {
+          "name": "creatorShareBps",
+          "type": "u16"
+        },
+        {
+          "name": "arbiterShareBps",
+          "type": "u16"
+        },
+        {
+          "name": "protocolShareBps",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "depositParticipant",
+      "accounts": [
+        {
+          "name": "participant",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "bet",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "supportBet",
+      "accounts": [
+        {
+          "name": "bettor",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "bet",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "supportPosition",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "side",
+          "type": {
+            "defined": "Side"
+          }
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "declareWinner",
+      "accounts": [
+        {
+          "name": "arbiter",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "bet",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "winnerSide",
+          "type": {
+            "defined": "Side"
+          }
+        }
+      ]
+    },
+    {
+      "name": "withdrawPrincipal",
+      "accounts": [
+        {
+          "name": "winner",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "bet",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claimSupport",
+      "accounts": [
+        {
+          "name": "bettor",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "bet",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "supportPosition",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "withdrawSpread",
+      "accounts": [
+        {
+          "name": "caller",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "bet",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userA",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userB",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "arbiter",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "protocolTreasury",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Bet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "userA",
+            "type": "publicKey"
+          },
+          {
+            "name": "userB",
+            "type": "publicKey"
+          },
+          {
+            "name": "arbiter",
+            "type": "publicKey"
+          },
+          {
+            "name": "stakeLamports",
+            "type": "u64"
+          },
+          {
+            "name": "userADeposited",
+            "type": "bool"
+          },
+          {
+            "name": "userBDeposited",
+            "type": "bool"
+          },
+          {
+            "name": "deadlineDuel",
+            "type": "i64"
+          },
+          {
+            "name": "deadlineCrowd",
+            "type": "i64"
+          },
+          {
+            "name": "resolveTs",
+            "type": "i64"
+          },
+          {
+            "name": "netSupportA",
+            "type": "u64"
+          },
+          {
+            "name": "netSupportB",
+            "type": "u64"
+          },
+          {
+            "name": "spreadPoolCreators",
+            "type": "u64"
+          },
+          {
+            "name": "spreadPoolArbiter",
+            "type": "u64"
+          },
+          {
+            "name": "spreadPoolProtocol",
+            "type": "u64"
+          },
+          {
+            "name": "spreadBps",
+            "type": "u16"
+          },
+          {
+            "name": "creatorShareBps",
+            "type": "u16"
+          },
+          {
+            "name": "arbiterShareBps",
+            "type": "u16"
+          },
+          {
+            "name": "protocolShareBps",
+            "type": "u16"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": "BetStatus"
+            }
+          },
+          {
+            "name": "winnerSide",
+            "type": {
+              "option": {
+                "defined": "Side"
+              }
+            }
+          },
+          {
+            "name": "protocolTreasury",
+            "type": "publicKey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SupportPosition",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bet",
+            "type": "publicKey"
+          },
+          {
+            "name": "bettor",
+            "type": "publicKey"
+          },
+          {
+            "name": "side",
+            "type": {
+              "defined": "Side"
+            }
+          },
+          {
+            "name": "netAmount",
+            "type": "u64"
+          },
+          {
+            "name": "claimed",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "BetStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Open"
+          },
+          {
+            "name": "Resolved"
+          },
+          {
+            "name": "Cancelled"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Side",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "A"
+          },
+          {
+            "name": "B"
+          }
+        ]
+      }
+    }
+  ],
+  "events": [
+    {
+      "name": "SupportClaimed",
+      "fields": [
+        {
+          "name": "bet",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "bettor",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "payout",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "BetCreated",
+      "fields": [
+        {
+          "name": "bet",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "userA",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "userB",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "arbiter",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "stakeLamports",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "WinnerDeclared",
+      "fields": [
+        {
+          "name": "bet",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "winnerSide",
+          "type": {
+            "defined": "Side"
+          },
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "ParticipantDeposited",
+      "fields": [
+        {
+          "name": "bet",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "participant",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "amount",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "BetSupported",
+      "fields": [
+        {
+          "name": "bet",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "bettor",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "side",
+          "type": {
+            "defined": "Side"
+          },
+          "index": false
+        },
+        {
+          "name": "amount",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "netAmount",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "PrincipalWithdrawn",
+      "fields": [
+        {
+          "name": "bet",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "winner",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "amount",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "SpreadWithdrawn",
+      "fields": [
+        {
+          "name": "bet",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "feeA",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "feeB",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "feeArbiter",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "feeProtocol",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidStakeAmount",
+      "msg": "Invalid stake amount"
+    },
+    {
+      "code": 6001,
+      "name": "InvalidDeadlines",
+      "msg": "Invalid deadlines"
+    },
+    {
+      "code": 6002,
+      "name": "InvalidFeeConfig",
+      "msg": "Invalid fee configuration"
+    },
+    {
+      "code": 6003,
+      "name": "DeadlinePassed",
+      "msg": "Deadline has passed"
+    },
+    {
+      "code": 6004,
+      "name": "BetNotOpen",
+      "msg": "Bet is not open"
+    },
+    {
+      "code": 6005,
+      "name": "AlreadyDeposited",
+      "msg": "User already deposited"
+    },
+    {
+      "code": 6006,
+      "name": "ParticipantsNotDeposited",
+      "msg": "Participants must deposit first"
+    },
+    {
+      "code": 6007,
+      "name": "InvalidParticipant",
+      "msg": "Invalid participant"
+    },
+    {
+      "code": 6008,
+      "name": "TooEarlyToResolve",
+      "msg": "Too early to resolve"
+    },
+    {
+      "code": 6009,
+      "name": "BetNotResolved",
+      "msg": "Bet is not resolved"
+    },
+    {
+      "code": 6010,
+      "name": "InvalidWinner",
+      "msg": "Invalid winner"
+    },
+    {
+      "code": 6011,
+      "name": "AlreadyClaimed",
+      "msg": "Support position already claimed"
+    },
+    {
+      "code": 6012,
+      "name": "WrongSide",
+      "msg": "Wrong side"
+    },
+    {
+      "code": 6013,
+      "name": "InvalidArbiter",
+      "msg": "Invalid arbiter"
+    },
+    {
+      "code": 6014,
+      "name": "AmountTooSmall",
+      "msg": "Amount too small"
+    },
+    {
+      "code": 6015,
+      "name": "ArithmeticOverflow",
+      "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6016,
+      "name": "InvalidSupportPosition",
+      "msg": "Invalid support position"
+    }
+  ]
+}
