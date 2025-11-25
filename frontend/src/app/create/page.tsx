@@ -304,7 +304,7 @@ export default function CreateBet() {
                 <div>
                   <p className={labelClasses}>Challenger A</p>
                   <h3 className="text-xl font-semibold text-white">
-                    Team Aurora
+                    Monkey
                   </h3>
                   <p className="text-sm text-white/70">46% · 2.4 SOL</p>
                 </div>
@@ -338,7 +338,7 @@ export default function CreateBet() {
                 <div className="text-right">
                   <p className={labelClasses}>Challenger B</p>
                   <h3 className="text-xl font-semibold text-white">
-                    Team Nebula
+                    Ant
                   </h3>
                   <p className="text-sm text-white/70">54% · 2.9 SOL</p>
                 </div>
